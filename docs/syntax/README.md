@@ -17,7 +17,6 @@ create_clock -period <float>
 ```
 create_generated_clock (-name <string>)?
                         -source <pin>
-                       (-master_clock <clock>)?
                        (-divide_by <float>)?
                        (-multiply_by <float>)?
                        (-add)?
@@ -48,7 +47,6 @@ set_false_path (-setup)?
                (-fall)?
                (-from <from_list>)?
                (-to <to_list>)?
-               (-through <through_list>)?
 ```
 
 Note: There are some extra to discuss.
@@ -60,7 +58,6 @@ set_max_delay (-rise)?
               (-fall)?
               (-from <from_list>)?
               (-to <to_list>)?
-              (-through <through_list>)?
               <delay: float>
 ```
 
@@ -71,7 +68,6 @@ set_min_delay (-rise)?
               (-fall)?
               (-from <from_list>)?
               (-to <to_list>)?
-              (-through <through_list>)?
               <delay: float>
 ```
 
