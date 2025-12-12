@@ -14,11 +14,11 @@ module get_clocks(
     input wire clk2,
     input wire clk_gen,
     input wire clock,
-    output wire dummy_out
+    output reg dummy_out
 );
-    assign dummy_out = 1'b1;
+    initial dummy_out = 1'b1;
 
-    always (posedge clk1 or posedge clk2 or posedge clk_gen or posedge clock) begin
+    always @(posedge clk1 or posedge clk2 or posedge clk_gen or posedge clock) begin
         dummy_out <= ~dummy_out;
     end
 

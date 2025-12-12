@@ -12,7 +12,7 @@ SDC Example:
 module get_pins(
     input wire clk, 
     input wire data_in,
-    output reg [1:0] data_out,
+    output reg [1:0] data_out
 );
     wire u1_out, u2_out;
 

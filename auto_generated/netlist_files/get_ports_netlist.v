@@ -15,7 +15,7 @@ module get_ports(
     input wire data2_in,
     input wire valid_in,
     output reg result_out,
-    output reg ready_out
+    output wire ready_out
 );
     //ready_out is always 1 for this simple module
     assign ready_out = 1'b1;
