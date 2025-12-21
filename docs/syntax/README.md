@@ -1,5 +1,7 @@
 # SDC Syntax
 
+![SDC_Syntax.png](./docs/images/Synopsys-Design-Constraints.png)
+
 ## Timing Constraints
 
 ### create_clock
