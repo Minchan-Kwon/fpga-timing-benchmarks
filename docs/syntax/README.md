@@ -1,6 +1,6 @@
 # SDC Syntax
 
-![SDC_Syntax.png](./docs/images/Synopsys-Design-Constraints.png)
+![SDC_Syntax.png](../images/Synopsys-Design-Constraints.png)
 
 ## Timing Constraints
 
