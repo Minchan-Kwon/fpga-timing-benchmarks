@@ -19,8 +19,8 @@ create_clock -period <float>
 ```
 create_generated_clock (-name <string>)?
                         -source <pin>
-                       (-divide_by <float>)?
-                       (-multiply_by <float>)?
+                       (-divide_by <integer>)?
+                       (-multiply_by <integer>)?
                        (-add)?
                        <pin_list>
 ```
@@ -82,7 +82,7 @@ set_multicycle_path (-setup)?
                     (-fall)?
                     (-from <from_list>)?
                     (-to <to_list>)?
-                    <path_multiplier: float>
+                    <path_multiplier: integer>
 ```
 
 ### set_input_delay
@@ -182,17 +182,6 @@ get_cells (-regexp)?
           (-nocase)?
           (-quiet)?
           <patterns>
-```
-
-Note: OpenSTA has special flags for hierarchical matches. Should consider adding.
-
-### get_nets
-
-```
-get_nets (-regexp)?
-         (-nocase)?
-         (-quiet)?
-         <patterns>
 ```
 
 Note: OpenSTA has special flags for hierarchical matches. Should consider adding.
