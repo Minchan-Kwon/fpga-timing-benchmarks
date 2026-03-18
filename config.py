@@ -266,7 +266,20 @@ set_multicycle_path = [
 
 # 12. set_disable_timing
 
-# 13. setup_violation
+# 13. setup_optimization
+vtr_setup_test = [
+    {
+        'type': '',
+        'blif': '',
+        'top_level_module': '',
+        'sdc': """
+        """.strip(),
+        'param': [],
+        'layout': 'vtr_',
+        'graphics': True
+    }
+    
+]
 
 # 14. hold_violation
 
