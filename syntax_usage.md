@@ -1,18 +1,18 @@
 # Running the Syntax Suite
 
-Follow the steps below to generate SDC files and run the syntax validation tests. </br>
+Follow the steps below to generate SDC files and run the syntax validation tests. <br>
 
 First, open ```config.py``` and replace the value of ```VTR_ROOT``` with the absolute path to VTR in your local machine. You do not need to make changes to the other path variables in ```config.py``` since they are relative to this repository.
 
 ## 1. Command-line Options
 This is a description of the command-line options for executing the script ```run_syntax.py```.
 
-```--stage <string>``` </br>
- - **generate**: Generates SDCs for testing in the future. </br>
+```--stage <string>``` <br>
+ - **generate**: Generates SDCs for testing in the future. <br>
  - **test**: Runs VPR with the BLIF netlist files and the SDCs that were generated. 
 
-```--sdc_name <string>```</br>
- - **\<sdc_name\>**: Name of the SDC to test/generate. </br>
+```--sdc_name <string>```<br>
+ - **\<sdc_name\>**: Name of the SDC to test/generate. <br>
  - **all**: Run/generate all test cases listed in ```SYNTAX_TESTS```, which is defined in ```config.py```.
 
 
@@ -26,7 +26,7 @@ python run_syntax.py --stage generate --sdc_name create_clock
 The command below will generate test cases for all the SDCs listed in ```SYNTAX_TESTS```, defined in ```config.py```. To finetune which SDCs to generate/test, add or remove the SDCs listed in ```SYNTAX_TESTS```.
 
 ```bash
-python run_sytax.py --stage generate --sdc_name all
+python run_syntax.py --stage generate --sdc_name all
 ```
 
 Running the 'generate' process will create a number of SDCs compatible with the BLIF netlist files included in the suite. The generated files are saved to ```./auto_generated/sdc_files/<sdc_name>```. If the target directory already exists, the script will overwrite the existing files with the newly generated SDCs.

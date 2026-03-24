@@ -198,7 +198,7 @@ set_output_delay = [
     'top_level_module': 'hamming_distance',
     'sdc': """
 create_clock -period 35.0 {clk}
-set_output_delay <delay> -clock clk {data_in*}
+set_output_delay <delay> -clock clk {data_out*}
     """.strip(),
     'param': [{'name': '<delay>', 'default': None, 'values': [10.0, 20.0, 30.0, 32.0, 33.0, 34.0, 35.0]}],
     'layout': 'vtr_medium',
