@@ -1,11 +1,12 @@
 from pathlib import Path
-from config import RESULTS_DIR, SYNTAX_DIR, ARCH_FILE, VTR_ROOT
 import config
+from config import RESULTS_DIR, SYNTAX_DIR, ARCH_FILE, VTR_ROOT, SYNTAX_TESTS
 import os
 import subprocess
 import csv
 import re
 import argparse
+from scripts.generate_sdc import generate_files
 
 def run_syntax_suite(config):
     '''
@@ -24,8 +25,8 @@ def run_syntax_suite(config):
         
     '''
     # Path definitions
-    result_dir = RESULTS_DIR / config['type']
-    sdc_dir = SYNTAX_DIR / 'sdc_files' / config['sdc_name']
+    result_dir = RESULTS_DIR / 'syntax' / config['type'] # Results will be saved here
+    sdc_dir = SYNTAX_DIR / 'sdc_files' / config['sdc_name'] 
     blif_file = SYNTAX_DIR / 'netlist_files' / config['blif']
     architecture_file = ARCH_FILE
     
@@ -80,6 +81,7 @@ def run_syntax_suite(config):
             
         except subprocess.CalledProcessError as e:
             print(f"    [FAILED] {sdc.name}")
+            print(e.stderr)
             summary[sdc.name] = "FAIL"
             
             try:
@@ -138,22 +140,50 @@ def run_syntax_suite(config):
 
 if __name__ == "__main__":
     
-    parser = argparse.ArgumentParser(description="Runs syntax test")
-    parser.add_argument('--sdc_name', type=str, required=True, help="Type of SDC to test")
+    # Return a list of SDC names in strings
+    sdc_names = [k for k, v in vars(config).items() if v in SYNTAX_TESTS]
+
+    # Initialize parser
+    parser = argparse.ArgumentParser(description="Run the syntax test flow.")
+    parser.add_argument('--stage', type=str, required=True, help="Which Stage of the Flow to Run.")
+    parser.add_argument('--sdc_name', type=str, required=True, help="Type of SDC to test.")
     
+    # Parse arguments
     args = parser.parse_args()
-    sdc_name = args.sdc_name
+    stage = args.stage
+    sdc = args.sdc_name
     
-    # Run all tests
-    if sdc_name == "all":
-        for test in config.SYNTAX_TESTS:
-            run_syntax_suite(test)
-    
-    # Bring the configuration object from config.py using getattr
-    try:
-        sdc_config = getattr(config, sdc_name)
-    except AttributeError:
-        print(f"Error: '{sdc_name}' doesn't exist in the config file")
-        exit(1)
-    
-    run_syntax_suite(sdc_config)
+    # Generate SDCs if stage == 'generate'
+    if stage == "generate":
+        # Generate all types of SDCs
+        if sdc == "all": 
+            for sdc_name in sdc_names:
+                generate_files([sdc_name], batch=1)
+
+        # Generate SDC files for a given type
+        elif sdc in sdc_names:
+            generate_files([sdc], batch=1)
+
+        # Invalid SDC type
+        else:
+            print(SYNTAX_TESTS)
+            print(f"Error: {sdc} does not exist in the config file.\n")
+
+    # Run the syntax flow 
+    elif stage == "test":
+        # Generate all types of SDCs:
+        if sdc == "all":
+            for test in sdc_names:
+                test = getattr(config, test)
+                run_syntax_suite(test)
+
+        # Run the syntax test for the given SDC type
+        elif sdc in sdc_names:
+            # Bring the configuration object from config.py using getattr
+            sdc_test = getattr(config, sdc)
+            # Run the syntax test
+            run_syntax_suite(sdc_test)
+
+        # Invalid SDC type    
+        else:
+            print(f"Error: {sdc} does not exist in the config file.\n")
