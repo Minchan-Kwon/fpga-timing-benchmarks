@@ -1,9 +1,9 @@
 from pathlib import Path
 
 ### DIRECTORIES ###
-# Edit 'VTR_ROOT' to the actual directory in which it is located.
+# Edit 'VTR_ROOT' to the actual path to VTR on your local machine.
 
-VTR_ROOT = Path('~/VTR/vtr-verilog-to-routing').expanduser()
+VTR_ROOT = Path('~/work/vtr-verilog-to-routing').expanduser()
 BENCHMARK_ROOT = Path(__file__).parent
 MICRO_ROOT = BENCHMARK_ROOT / 'fpga_timing_benchmarks' / 'benchmarks' / 'basic' / 'netlist_files'
 ARCH_DIR = BENCHMARK_ROOT / 'arch'
@@ -296,73 +296,73 @@ TIMING_TESTS = []
 # 'sdc_name' (str): Name of the timing constraint targeted for syntax validation. 
 
 create_clock = {
-    'type': 'syntax_create_clock',
+    'type': 'create_clock',
     'blif': 'create_clock_netlist.blif',
     'sdc_name': 'create_clock'
 }
 
 create_generated_clock = {
-    'type': 'syntax_create_generated_clock',
+    'type': 'create_generated_clock',
     'blif': 'create_generated_clock_netlist.blif',
     'sdc_name': 'create_generated_clock'
 }
 
 set_input_delay = {
-    'type': 'syntax_set_input_delay',
+    'type': 'set_input_delay',
     'blif': 'set_input_delay_netlist.blif',
     'sdc_name': 'set_input_delay'
 }
 
 set_output_delay = {
-    'type': 'syntax_set_output_delay',
+    'type': 'set_output_delay',
     'blif': 'set_output_delay_netlist.blif',
     'sdc_name': 'set_output_delay'
 }
 
 set_clock_latency = {
-    'type': 'syntax_set_clock_latency',
+    'type': 'set_clock_latency',
     'blif': 'set_clock_latency_netlist.blif',
     'sdc_name': 'set_clock_latency'
 }
 
 set_clock_uncertainty = {
-    'type': 'syntax_set_clock_uncertainty',
+    'type': 'set_clock_uncertainty',
     'blif': 'set_clock_uncertainty_netlist.blif',
     'sdc_name': 'set_clock_uncertainty'
 }
 
 set_false_path = {
-    'type': 'syntax_set_false_path',
+    'type': 'set_false_path',
     'blif': 'set_false_path_netlist.blif',
     'sdc_name': 'set_false_path'
 }
 
 set_max_delay = {
-    'type': 'syntax_set_max_delay',
+    'type': 'set_max_delay',
     'blif': 'set_max_delay_netlist.blif',
     'sdc_name': 'set_max_delay'
 }
 
 set_min_delay = {
-    'type': 'syntax_set_min_delay',
+    'type': 'set_min_delay',
     'blif': 'set_min_delay_netlist.blif',
     'sdc_name': 'set_min_delay'
 }
 
 set_multicycle_path = {
-    'type': 'syntax_set_multicycle_path',
+    'type': 'set_multicycle_path',
     'blif': 'set_multicycle_path_netlist.blif',
     'sdc_name': 'set_multicycle_path'
 }
 
 set_clock_groups = {
-    'type': 'syntax_set_clock_groups',
+    'type': 'set_clock_groups',
     'blif': 'set_clock_groups_netlist.blif',
     'sdc_name': 'set_clock_groups'
 }
 
 set_disable_timing = {
-    'type': 'syntax_set_disable_timing',
+    'type': 'set_disable_timing',
     'blif': 'set_disable_timing_netlist.blif',
     'sdc_name': 'set_disable_timing'
 }
