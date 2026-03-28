@@ -4,6 +4,9 @@ Follow the steps below to generate SDC files and run the syntax validation tests
 
 First, open ```config.py``` and replace the value of ```VTR_ROOT``` with the absolute path to VTR in your local machine. You do not need to make changes to the other path variables in ```config.py``` since they are relative to this repository.
 
+After that, set up a virtual environment using this command: ```source <PATH_TO_VTR>/.venv/bin/activate```. You will need to replace '\<PATH_TO_VTR>' with the absolute path to VTR. 
+
+
 ## 1. Command-line Options
 This is a description of the command-line options for executing the script ```run_syntax.py```.
 
