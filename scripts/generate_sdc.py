@@ -1163,10 +1163,10 @@ def generate_set_disable_timing():
                 # both '-from' and '-to' not in option_combination
                 else: 
                     base_pieces = pieces.copy()
-+                   base_pieces.append(obj)
-+                   base_pieces = " ".join(base_pieces)
-+                   base_pieces = ("create_clock -period 10 clk\n" + base_pieces)
-+                   commands.append(base_pieces)
+                    base_pieces.append(obj)
+                    base_pieces = " ".join(base_pieces)
+                    base_pieces = ("create_clock -period 10 clk\n" + base_pieces)
+                    commands.append(base_pieces)
 
     return commands
 
