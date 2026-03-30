@@ -19,7 +19,7 @@ LIBERTY_FILE = VTR_ROOT / 'vtr_flow' / 'primitives.lib'
 # TIMING_TESTS: A list of per constraint timing test configurations.
 # The entries of the list 'TIMING_TESTS' are dictionaries that define a single or multiple test cases. 
 
-# Dictionary Format: 
+# Dictionary Format:
 # 'type' (str): A unique name for a test case. Used to create the output directory.
 # 'blif' (str): Path to the BLIF file to test, relative to 'MICRO_ROOT'.
 # 'top_level_module' (str): Name of the top level module of the design.
@@ -32,8 +32,7 @@ LIBERTY_FILE = VTR_ROOT / 'vtr_flow' / 'primitives.lib'
 # 'graphics' (bool): Enable VPR graphics and save PnR results as a PNG.
 
 # 1. create_clock
-create_clock = [
-    {
+create_clock_rca = {
     'type': 'create_clock_rca', 
     'blif': 'create_clock/rca.blif',
     'top_level_module': 'rca',
@@ -44,12 +43,12 @@ create_clock -period 1.0 -name irrelevant_clock
     'param': [{'name': '<period>', 'default': None, 'values': [1.0, 3.0, 5.0, 10.0, 12.0]}],
     'layout': 'vtr_medium',
     'graphics': False
-    }
-    ]
+}
+
+create_clock_timing = [create_clock_rca]
 
 # 2. create_generated_clock
-create_generated_clock = [
-    {
+create_generated_clock_clock_divider_base = {
     'type': 'create_generated_clock_clock_divider_base',
     'blif': 'create_generated_clock/clock_divider.blif',
     'top_level_module': 'clock_divider',
@@ -61,9 +60,9 @@ create_generated_clock -source [get_clocks clk] -divide_by 2 {*641*.Q*}
     'param': None,
     'layout': 'vtr_medium',
     'graphics': False
-    },
-    
-    {
+}
+
+create_generated_clock_clock_divider = {
     'type': 'create_generated_clock_clock_divider',
     'blif': 'create_generated_clock/clock_divider.blif',
     'top_level_module': 'clock_divider',
@@ -75,215 +74,8 @@ create_clock -period 10.0 {$dff~641^Q~0}
     'param': None,
     'layout': 'vtr_medium',
     'graphics': False
-    },
-    
-    {
-    'type': 'create_generated_clock_multiplexed_clock',
-    'blif': 'create_generated_clock/multiplexed_clock.v',
-    'sdc': """
-create_clock
-create_generated_clock
-    """.strip(),
-    'param': [],
-    'layout': 'vtr_medium',
-    'graphics': False
-    }
-    ]
+}
 
-# 3. set_clock_groups
-set_clock_groups = [
-    {
-    'type': 'set_clock_groups_muticlock_cdc',
-    'blif': 'set_clock_groups/multiclock_cdc.blif',
-    'sdc': """
-create_clock -period 10.0 {*clk_A}
-create_clock -period 5.0 {*clk_B}
-set_clock_groups -asynchronous -group {*clk_A} -group {*clk_B}
-    """.strip(),
-    'param': None,
-    'layout': 'vtr_medium',
-    'graphics': True
-    }
-    ]
-
-# 4. set_clock_latency
-set_clock_latency = [
-    {
-    'type': 'set_clock_latency_adc_to_dac',
-    'blif': 'set_clock_latency/adc_to_dac.blif',
-    'sdc': """
-create_clock -period 5.0 {clk}
-set_clock_latency -source <latency> {clk}
-set_input_delay 1.0 adc_data* -clock {clk}
-set_output_delay 1.0 [get_ports dac_data*] -clock {clk}
-    """.strip(),
-    'param': [{'name': '<latency>', 'default': None, 'values': [0.5, 1.0, 2.0, 3.0, 5.0]}],
-    'layout': 'vtr_medium',
-    'graphics': False
-    },
-    
-    {
-    'type': 'set_clock_latency_skewed_clock',
-    'blif': 'set_clock_latency/skewed_clock.blif',
-    'sdc': """
-
-    """.strip(),
-    'param': [],
-    'layout': 'vtr_medium',
-    'graphics': False
-    }
-    ]
-
-# 5. set_clock_uncertainty
-set_clock_uncertainty = [
-    {
-    'type': 'set_clock_uncertainty_dot_prod',
-    'blif': 'set_clock_uncertainty/dot_product_pipe.blif',
-    'sdc': """
-create_clock -period 15.0 {dot_product_pipe^clk}
-set_clock_uncertainty -setup <uncertainty> {dot_product_pipe^clk}
-    """.strip(),
-    'param': [{'name': '<uncertainty>', 'default': None, 'values': [0.5, 1.0, 2.0, 3.0, 5.0]}],
-    'layout': 'vtr_medium',
-    'graphics': True
-    }
-    ]
-
-# 6. set_false_path
-set_false_path = [
-    {
-    'type': 'set_false_path_multiclock_cdc',
-    'blif': 'set_false_path/multiclock_cdc.v',
-    'sdc': """
-set_false_path -from -to
-    """.strip(),
-    'param': None,
-    'layout': 'vtr_medium',
-    'graphics': True
-    },
-    
-    {
-    'type': 'set_false_path_multibit_rca',
-    'blif': 'set_false_path/multibit_rca.blif',
-    'sdc': """
-set_false_path -from -to
-    """.strip(),
-    'param': None,
-    'layout': 'vtr_medium',
-    'graphics': False
-    }
-    ]
-
-# 7. set_input_delay
-set_input_delay = [
-    {
-    'type': 'set_input_delay_hamming_distance', # Must be a unique name for that test case
-    'blif': 'set_input_delay/hamming_distance.blif',
-    'top_level_module': 'hamming_distance',
-    'sdc': """
-create_clock -period 35.0 {clk}
-set_input_delay <delay> -clock clk *data_in*
-    """.strip(),
-    'param': [{'name': '<delay>', 'default': None, 'values': [1.0, 5.0, 10.0, 20.0, 30.0, 32.0, 33.0, 34.0, 35.0, 40]}],
-    'layout': 'vtr_medium',
-    'graphics': True
-    }
-    ]
-
-# 8. set_output_delay
-set_output_delay = [
-    {
-    'type': 'set_output_delay_hamming_distance', # Must be a unique name for that test case
-    'blif': 'set_output_delay/hamming_distance.blif',
-    'top_level_module': 'hamming_distance',
-    'sdc': """
-create_clock -period 35.0 {clk}
-set_output_delay <delay> -clock clk {data_out*}
-    """.strip(),
-    'param': [{'name': '<delay>', 'default': None, 'values': [10.0, 20.0, 30.0, 32.0, 33.0, 34.0, 35.0]}],
-    'layout': 'vtr_medium',
-    'graphics': True
-    }
-    ]
-
-# 9. set_max_delay
-set_max_delay = [
-    {
-    'type': 'set_max_delay_barrel_shifter',
-    'blif': 'set_max_delay/barrel_shifter.blif',
-    'sdc': """
-    """.strip(),
-    'param': [],
-    'layout': 'vtr_medium',
-    'graphics': False
-    },
-    
-    {
-    'type': 'set_max_delay_multiclock_cdc',
-    'blif': 'set_max_delay/multiclock_cdc.blif',
-    'sdc': """
-    """.strip(),
-    'param': [],
-    'layout': 'vtr_medium',
-    'graphics': False
-    }
-    ]
-
-# 10. set_min_delay
-set_min_delay = [
-    {
-    'type': 'set_min_delay_alu_4bit',
-    'blif': 'set_min_delay/alu_4bit.blif',
-    'sdc': """
-    """.strip(),
-    'param': [],
-    'layout': 'vtr_medium',
-    'graphics': False
-    },
-    
-    {
-    'type': 'set_min_delay_multiclock_cdc',
-    'blif': 'set_min_delay/multiclock_cdc.blif',
-    'sdc': """
-    """.strip(),
-    'param': [],
-    'layout': 'vtr_medium',
-    'graphics': False
-    }
-    ]
-
-# 11. set_multicycle_path
-set_multicycle_path = [
-    {
-    'type': 'set_multicycle_path_multi_rca',
-    'circuit': 'set_multicycle_path/multi_rca.v',
-    'sdc': 'set_multicycle_path/multi_rca.sdc',
-    'param': [],
-    'layout': 'vtr_medium',
-    'graphics': False
-    }
-    ]
-
-# 12. set_disable_timing
-
-# 13. setup_optimization
-vtr_setup_test = [
-    {
-        'type': '',
-        'blif': '',
-        'top_level_module': '',
-        'sdc': """
-        """.strip(),
-        'param': [],
-        'layout': 'vtr_',
-        'graphics': True
-    }
-    
-]
-
-# 14. hold_violation
-
-TIMING_TESTS = []
 
 ### SYNTAX TEST CONFIGURATION ###
 

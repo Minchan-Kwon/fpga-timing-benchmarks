@@ -1,4 +1,4 @@
-from pathlib import Path
+import pathlib.Path
 import config
 from config import RESULTS_DIR, SYNTAX_DIR, ARCH_FILE, VTR_ROOT, SYNTAX_TESTS
 import os
@@ -8,10 +8,11 @@ import re
 import argparse
 from scripts.generate_sdc import generate_files
 
+
 def run_syntax_suite(config):
     '''
     Run place and route on the given test case with VPR.
-    VPR will generate post-implementation netlists and timing analysis files that can be analyzed later on. 
+    VPR will generate post-implementation netlists and timing analysis files that can be analyzed later on.
     
     Args:
         constraing_config (dict): Constraint test configuration (Defined in 'TEST_DICT').
@@ -20,9 +21,8 @@ def run_syntax_suite(config):
       
     Returns:
         constraint_config (dict):
-        temp_dir (Path): 
+        temp_dir (Path):
         place_file (Path):
-        
     '''
     # Path definitions
     result_dir = RESULTS_DIR / 'syntax' / config['type'] # Results will be saved here
@@ -36,8 +36,8 @@ def run_syntax_suite(config):
     
     result_dir.mkdir(parents=True, exist_ok=True)
     
-    assert os.path.exists(blif_file)
-    assert os.path.exists(sdc_dir)
+    assert blif_file.exists()
+    assert sdc_dir.exists()
     
     # Search for SDCs and add the paths to a list
     sdc_list = list(sdc_dir.glob(f'{config['sdc_name']}*.sdc'))
@@ -55,35 +55,35 @@ def run_syntax_suite(config):
     for sdc in sdc_list:
         # Prepare VTR arguments
         cmd = [
-        f'{VTR_ROOT}/vtr_flow/scripts/run_vtr_flow.py',
-        f'{blif_file}',
-        f'{architecture_file}',
-        '-starting_stage', 'abc', # Technology mapping with ABC
-        '-ending_stage', 'vpr', 
-        '-temp_dir', f'{result_dir}',
-        '--pack',  # Run the pack stage of VPR
-        '--device', f'vtr_medium', 
-        '--route_chan_width', '100',
-        '--sdc_file', f'{sdc}'
+            f'{VTR_ROOT}/vtr_flow/scripts/run_vtr_flow.py',
+            f'{blif_file}',
+            f'{architecture_file}',
+            '-starting_stage', 'abc', # Technology mapping with ABC
+            '-ending_stage', 'vpr',
+            '-temp_dir', f'{result_dir}',
+            '--pack',  # Run the pack stage of VPR
+            '--device', 'vtr_medium',
+            '--route_chan_width', '100',
+            '--sdc_file', f'{sdc}'
         ]
-        
+
         # Run subprocess
         try:
             print(f"Running Syntax Suite (SDC: {sdc.name})")
             subprocess.run(cmd, capture_output=True, text=True, check=True)
             print(f"    [PASSED] {sdc.name}")
             summary[sdc.name] = "PASS"
-            try: 
+            try:
                 sdc_content = sdc.read_text()
             except Exception:
                 sdc_content = "Could Not Read SDC"
             pass_log[sdc.name] = sdc_content
-            
+
         except subprocess.CalledProcessError as e:
             print(f"    [FAILED] {sdc.name}")
             print(e.stderr)
             summary[sdc.name] = "FAIL"
-            
+
             try:
                 sdc_content = sdc.read_text()
             except Exception:
@@ -92,29 +92,29 @@ def run_syntax_suite(config):
             # Capture error message
             with open(result_dir / 'vpr.out') as f:
                 vpr_content = f.read()
-            
+
             errors = error_pattern.findall(vpr_content)
             err_msg = [error.strip() for error in errors]
-            
+
             # Save to error log
             error_log[sdc.name] = {
-                'sdc': sdc_content, 
+                'sdc': sdc_content,
                 'error': err_msg
             }
-    
+
     # Write summary CSV
-    with open(csv_path, 'w', newline = '') as f:
+    with open(csv_path, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['SDC_Filename', 'Result'])
         for name, status in summary.items():
             writer.writerow([name, status])
-            
+
     print(f"Summary saved to: {csv_path}")
-    
+
     # Write pass log
     if pass_log:
         with open(pass_path, 'w') as f:
-            f.write(f"Passed SDCs\n\n")
+            f.write("Passed SDCs\n\n")
             for name, content in pass_log.items():
                 f.write(f"File: {name}\n")
                 f.write(f"{content}\n")
@@ -126,20 +126,20 @@ def run_syntax_suite(config):
         with open(err_path, 'w') as f:
             f.write(f"Error Log for '{config['sdc_name']}'\n\n")
             for name, error in error_log.items():
-                f.write(f"SDC Content:\n")
+                f.write("SDC Content:\n")
                 f.write(f"{error['sdc']}")
                 f.write('-'*30+'\n')
-                f.write(f"Error Message:\n")
+                f.write("Error Message:\n")
                 for line in error['error']:
                     f.write(f"{line}\n")
                 f.write('-'*30+'\n\n')
-                
+
         print(f"Error log saved to: {err_path}")
-        
+
     return None
 
+
 if __name__ == "__main__":
-    
     # Return a list of SDC names in strings
     sdc_names = [k for k, v in vars(config).items() if v in SYNTAX_TESTS]
 
@@ -147,12 +147,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the syntax test flow.")
     parser.add_argument('--stage', type=str, required=True, help="Which Stage of the Flow to Run.")
     parser.add_argument('--sdc_name', type=str, required=True, help="Type of SDC to test.")
-    
+
     # Parse arguments
     args = parser.parse_args()
     stage = args.stage
     sdc = args.sdc_name
-    
+
     # Generate SDCs if stage == 'generate'
     if stage == "generate":
         # Generate all types of SDCs
