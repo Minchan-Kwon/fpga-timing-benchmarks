@@ -24,7 +24,7 @@ LIBERTY_FILE = VTR_ROOT / 'vtr_flow' / 'primitives.lib'
 # 'type' (str): A unique name for a test case. Used to create the output directory.
 # 'blif' (str): Path to the BLIF file to test, relative to 'MICRO_ROOT'.
 # 'top_level_module' (str): Name of the top level module of the design.
-# 'sdc' (str): A template for the SDC to test. Use placeholders '<param_name>' 
+# 'sdc' (str): A template for the SDC to test. Use placeholders '<param_name>'
 #              to substitute with varying values.
 # 'param' (list|None): A list of dictionaries for parameter sweeping. Each dictionary
 #                      must have keys 'name' and 'values'.
