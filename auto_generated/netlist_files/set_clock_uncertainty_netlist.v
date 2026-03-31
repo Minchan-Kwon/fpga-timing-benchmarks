@@ -25,7 +25,7 @@ module set_clock_uncertainty(
         data_internal <= port1;
     end
 
-    //Syncronizing registers
+    //Synchronizing registers
     reg sync_1; 
     reg sync_2;
 
