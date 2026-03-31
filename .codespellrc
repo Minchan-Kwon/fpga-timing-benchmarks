@@ -1,0 +1,14 @@
+[codespell]
+# These are a list of files that should skip spell-checking.
+skip = ./build,
+       # File types that we do not need to spell-check.
+       *.pdf,
+       *.blif,
+       *.xml
+       # Large testing directories.
+
+# Show a count of the number of spelling mistakes when codespell is run.
+count = true
+
+# Only show critical information.
+quiet-level = 3

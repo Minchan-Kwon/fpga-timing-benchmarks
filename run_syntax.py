@@ -1,7 +1,5 @@
-import pathlib.Path
 import config
 from config import RESULTS_DIR, SYNTAX_DIR, ARCH_FILE, VTR_ROOT, SYNTAX_TESTS
-import os
 import subprocess
 import csv
 import re
@@ -12,36 +10,37 @@ from scripts.generate_sdc import generate_files
 def run_syntax_suite(config):
     '''
     Run place and route on the given test case with VPR.
-    VPR will generate post-implementation netlists and timing analysis files that can be analyzed later on.
-    
+    VPR will generate post-implementation netlists and timing
+    analysis files that can be analyzed later on.
+
     Args:
         constraing_config (dict): Constraint test configuration (Defined in 'TEST_DICT').
         sdc (Path): Single SDC file to test.
         random_seed (bool): Determines whether or not to use random seed for placement.
-      
+
     Returns:
         constraint_config (dict):
         temp_dir (Path):
         place_file (Path):
     '''
     # Path definitions
-    result_dir = RESULTS_DIR / 'syntax' / config['type'] # Results will be saved here
-    sdc_dir = SYNTAX_DIR / 'sdc_files' / config['sdc_name'] 
+    result_dir = RESULTS_DIR / 'syntax' / config['type']  # Results will be saved here
+    sdc_dir = SYNTAX_DIR / 'sdc_files' / config['sdc_name']
     blif_file = SYNTAX_DIR / 'netlist_files' / config['blif']
     architecture_file = ARCH_FILE
-    
+
     csv_path = result_dir / 'summary.csv'
     pass_path = result_dir / 'passed_test.txt'
     err_path = result_dir / 'error_log.txt'
-    
+
     result_dir.mkdir(parents=True, exist_ok=True)
-    
+
     assert blif_file.exists()
     assert sdc_dir.exists()
-    
+
     # Search for SDCs and add the paths to a list
     sdc_list = list(sdc_dir.glob(f'{config['sdc_name']}*.sdc'))
-    
+
     # Tracks parse results
     summary = {}
     # Tracks passing SDC contents
@@ -50,7 +49,7 @@ def run_syntax_suite(config):
     error_log = {}
     # Regex to look for in vpr.out
     error_pattern = re.compile(r"--- SDC TCL Parse Error ---(.*?)-{20,}", re.DOTALL)
-    
+
     # Test for all SDCs found
     for sdc in sdc_list:
         # Prepare VTR arguments
@@ -58,7 +57,7 @@ def run_syntax_suite(config):
             f'{VTR_ROOT}/vtr_flow/scripts/run_vtr_flow.py',
             f'{blif_file}',
             f'{architecture_file}',
-            '-starting_stage', 'abc', # Technology mapping with ABC
+            '-starting_stage', 'abc',  # Technology mapping with ABC
             '-ending_stage', 'vpr',
             '-temp_dir', f'{result_dir}',
             '--pack',  # Run the pack stage of VPR
@@ -120,7 +119,7 @@ def run_syntax_suite(config):
                 f.write(f"{content}\n")
                 f.write('-'*30+'\n')
         print(f"Pass log saved to: {pass_path}")
-    
+
     # Write error log
     if error_log:
         with open(err_path, 'w') as f:
@@ -156,7 +155,7 @@ if __name__ == "__main__":
     # Generate SDCs if stage == 'generate'
     if stage == "generate":
         # Generate all types of SDCs
-        if sdc == "all": 
+        if sdc == "all":
             for sdc_name in sdc_names:
                 generate_files([sdc_name], batch=1)
 
@@ -169,7 +168,7 @@ if __name__ == "__main__":
             print(SYNTAX_TESTS)
             print(f"Error: {sdc} does not exist in the config file.\n")
 
-    # Run the syntax flow 
+    # Run the syntax flow
     elif stage == "test":
         # Generate all types of SDCs:
         if sdc == "all":
@@ -184,6 +183,6 @@ if __name__ == "__main__":
             # Run the syntax test
             run_syntax_suite(sdc_test)
 
-        # Invalid SDC type    
+        # Invalid SDC type
         else:
             print(f"Error: {sdc} does not exist in the config file.\n")

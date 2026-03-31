@@ -1,6 +1,6 @@
 from pathlib import Path
 
-### DIRECTORIES ###
+# DIRECTORIES
 # Edit 'VTR_ROOT' to the actual path to VTR on your local machine.
 
 VTR_ROOT = Path('~/work/vtr-verilog-to-routing').expanduser()
@@ -14,26 +14,30 @@ SYNTAX_DIR = BENCHMARK_ROOT / 'auto_generated'
 ARCH_FILE = ARCH_DIR / 'k6_frac_N10_frac_chain_mem32K_40nm.xml'
 LIBERTY_FILE = VTR_ROOT / 'vtr_flow' / 'primitives.lib'
 
-### BASIC TIMING SUITE CONFIGURATION ###
+# BASIC TIMING SUITE CONFIGURATION
 
-# TIMING_TESTS: A list of per constraint timing test configurations.
-# The entries of the list 'TIMING_TESTS' are dictionaries that define a single or multiple test cases. 
+# TIMING_TESTS: A list of per constraint timing test configurations
+# The items of the list 'TIMING_TESTS' are dictionaries that define
+# a single test case.
 
 # Dictionary Format:
 # 'type' (str): A unique name for a test case. Used to create the output directory.
 # 'blif' (str): Path to the BLIF file to test, relative to 'MICRO_ROOT'.
 # 'top_level_module' (str): Name of the top level module of the design.
-# 'sdc' (str): A template for the SDC to test. Use placeholders '<param_name>' to substitute with varying values. 
-# 'param' (list|None): A list of dictionaries for parameter sweeping. Each dictionary must have keys 'name' and 'values'.
-#   'name': The placeholder string in the SDC template to be replaced. 
-#   'default': Default value for the parameter. Set to 'None' if no other parameter sweeping is required.  
+# 'sdc' (str): A template for the SDC to test. Use placeholders '<param_name>' 
+#              to substitute with varying values.
+# 'param' (list|None): A list of dictionaries for parameter sweeping. Each dictionary
+#                      must have keys 'name' and 'values'.
+#   'name': The placeholder string in the SDC template to be replaced.
+#   'default': Default value for the parameter. Set to 'None' if no other parameter
+#              sweeping is required.
 #   'values': A list of values to iterate through when creating the SDCs.
 # 'layout' (str): Fixed device layout as defined in the architecture description file (.xml).
 # 'graphics' (bool): Enable VPR graphics and save PnR results as a PNG.
 
 # 1. create_clock
 create_clock_rca = {
-    'type': 'create_clock_rca', 
+    'type': 'create_clock_rca',
     'blif': 'create_clock/rca.blif',
     'top_level_module': 'rca',
     'sdc': """
@@ -76,16 +80,17 @@ create_clock -period 10.0 {$dff~641^Q~0}
     'graphics': False
 }
 
+TIMING_TESTS = [create_clock_rca]
 
-### SYNTAX TEST CONFIGURATION ###
+# SYNTAX TEST CONFIGURATION
 
 # 'SYNTAX_TESTS': A list of syntax test configurations.
-# Elements in the list 'SYNTAX_TESTS' are dictionaries, defining each syntax test case. 
+# Elements in the list 'SYNTAX_TESTS' are dictionaries, defining each syntax test case.
 
 # Dictionary Format:
-# 'type' (str): A unique name for the test. Used for result tracking. 
-# 'blif' (str): The name of the BLIF file to be processed by VPR. 
-# 'sdc_name' (str): Name of the timing constraint targeted for syntax validation. 
+# 'type' (str): A unique name for the test. Used for result tracking.
+# 'blif' (str): The name of the BLIF file to be processed by VPR.
+# 'sdc_name' (str): Name of the timing constraint targeted for syntax validation.
 
 create_clock = {
     'type': 'create_clock',
