@@ -20,7 +20,10 @@ import shutil
 import json
 
 # TODO: Write better comments
-# TODO: Some VPR options are not compatible.
+# TODO: use try-except for error handling
+# TODO: Clean up code, especially function arguments
+# TODO: Make CLI runnable
+# TODO: Implement analyze_result(), for seed sweep analysis 
 
 def construct_sdc(test_config):
     '''
@@ -192,10 +195,9 @@ def run_vpr(test_config, sdc_dir=None, seed=1, **kwargs):
     sdc_list = get_sdc_list(sdc_dir)
 
     # Create a directory where the VPR output files will be moved to
-    result_dir = create_result_dir(base_dir=RESULTS_DIR/'timing'/test_config['type'], seed=seed, **kwargs)
+    result_dir, kwargs = create_result_dir(base_dir=RESULTS_DIR/'timing'/test_config['type'], seed=seed, **kwargs)
 
     # Write the experiment parameters as a JSON file
-    # TODO: Edit the make_json function so that incompatible vpr arguments won't be written.
     make_json(test_config=test_config, result_dir=result_dir, seed=seed, **kwargs)
 
     # Run the test for all the SDCs in 'sdc_dir'
@@ -220,23 +222,23 @@ def run_vpr(test_config, sdc_dir=None, seed=1, **kwargs):
         # Print whether SDC was found
         _ = was_sdc_parsed(temp_dir)
 
-        # TODO: change middle path, simplify code, path is too long.
-        middle_path = result_dir / f"{sdc.name if sdc else 'default_sdc'}"
-        middle_path.mkdir(parents=True)
+        # Directory where each individual test results are saved
+        run_output_dir = result_dir / f"{sdc.name if sdc else 'default_sdc'}"
+        run_output_dir.mkdir(parents=True)
         
         # Move the graphics file from 'temp_dir' to the result directory
         if test_config['graphics'] == True:
             png_file = temp_dir / graphics_file
-            png_file.rename(middle_path / graphics_file)
+            png_file.rename(run_output_dir / graphics_file)
         
         # Get timing results
         timing_summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt = make_vpr_summary(temp_dir)
 
         # Write parsed timing information to a new file
-        save_vpr_timing_report(middle_path, sdc, timing_summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt)
+        save_vpr_timing_report(run_output_dir, sdc, timing_summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt)
 
         # Save the distribution plot to the result directory
-        save_path_distribution(setup_rpt, middle_path)
+        save_path_distribution(setup_rpt, run_output_dir)
         
     return test_config, temp_dir
 
@@ -267,8 +269,6 @@ def get_sdc_list(sdc_dir=None):
         print(f"Error: Path {sdc_dir} does not exit.")
         return [None]
 
-
-# TODO: Incompatible options
 def create_result_dir(base_dir, seed, **kwargs):
     '''
     Creates a directory where the timing reports will be saved. 
@@ -283,6 +283,7 @@ def create_result_dir(base_dir, seed, **kwargs):
 
     placement_type = kwargs.get('placement_type', 'timing_driven')
     place_algorithm = kwargs.get('place_algorithm', 'criticality_timing')
+    analytical_solver = kwargs.get('analytical_solver', 'lp-b2b')
     hold = kwargs.get('hold', False)
 
     # New folder name
@@ -294,11 +295,15 @@ def create_result_dir(base_dir, seed, **kwargs):
         else:
             folder_name += "_slack"
 
-    else:
+    elif placement_type == "analytical":
         folder_name += "_analytical"
+        folder_name += f"_{analytical_solver}"
     
+    else:  # Invalid placement type specified, resort to timing driven placement
+        print(f"Invalid placement type {placement_type} specified. Using timing-driven \
+        placement instead.")
+        kwargs['placement_type'] = 'timing_driven'  # Modify the VPR arguments
 
-    
     if hold:
         folder_name += "_hold"
 
@@ -310,7 +315,7 @@ def create_result_dir(base_dir, seed, **kwargs):
 
         if not full_path.exists():
             full_path.mkdir(parents=True)
-            return full_path
+            return full_path, kwargs
 
         i += 1
 
@@ -338,7 +343,7 @@ def build_vpr_command(test_config, sdc=None, seed=1, **kwargs):
     placement_type = kwargs.get('placement_type', 'timing_driven')  # Timing-driven placement vs Analytical placement
     place_algo = kwargs.get('place_algorithm', 'criticality_timing')  # Placement algorithm for timing-driven placement
     place_agent_algo = kwargs.get('place_agent_algorithm', 'softmax')  # RL agent algorithm
-    analytical_solver = kwargs.get('analytical_solver', 'qp-hybrid')  # Analytical solver 
+    analytical_solver = kwargs.get('analytical_solver', 'lp-b2b')  # Analytical solver 
     ap_timing_tradeoff = str(kwargs.get('ap_timing_tradeoff', '0.5'))  # Timing tradeoff for analytical placement
     budgets_algo = 'yoyo' if kwargs.get('hold') else 'disable'  # Use yoyo for hold tests, disable for normal setup tests
     use_params = kwargs.get('use_params', False)  # Use parameters when generating post-implementation netlist
@@ -375,7 +380,9 @@ def build_vpr_command(test_config, sdc=None, seed=1, **kwargs):
             '--analytical_place',
             '--ap_analytical_solver', f'{analytical_solver}',
             '--ap_timing_tradeoff', f'{ap_timing_tradeoff}',
-            '--routing_budgets_algorithm', f'{budgets_algo}'
+            '--routing_budgets_algorithm', f'{budgets_algo}',
+            '--route_chan_width', '100',  # This ensure VPR won't fail during the routing stage
+            '--route', '--analysis'  # Forces VPR to run routing and analysis stages
         ]
     # Wrong placement type
     else: 
@@ -413,7 +420,7 @@ def save_vpr_timing_report(result_dir, sdc, timing_summary, hold_rpt, setup_rpt,
         sdc (Path): 
     '''
     # Write parsed timing information to a new file
-    sdc_name = sdc.stem
+    sdc_name = sdc.stem if sdc else 'default_sdc'
     with open(result_dir / f'{sdc_name}_timing.txt', 'w') as f:
         f.writelines('\n'.join(timing_summary))
     with open(result_dir / f'{sdc_name}_hold.txt', 'w') as f:
@@ -446,18 +453,28 @@ def make_json(test_config, result_dir, seed, **kwargs):
     use_params = kwargs.get('use_params', 'False')
     
     # 2. Save the run parameters in a dictionary format
-    run_params = {
-        "test_case": test_config['type'],
-        "sdc_template": test_config['sdc'],
-        "seed": seed,
-        "use_params": use_params,
-        "placement_type": placement_type,
-        "place_algorithm": place_algorithm,
-        "place_agent_algorithm": place_agent_algorithm,
-        "analytical_solver": analytical_solver,
-        "ap_timing_tradeoff": ap_timing_tradeoff,
-        "hold": hold
-    }
+    if placement_type == 'timing_driven':
+        run_params = {
+            "test_case": test_config['type'],
+            "sdc_template": test_config['sdc'],
+            "seed": seed,
+            "use_params": use_params,
+            "placement_type": placement_type,
+            "place_algorithm": place_algorithm,
+            "place_agent_algorithm": place_agent_algorithm,
+            "hold": hold
+        }
+    elif placement_type == 'analytical':
+        run_params = {
+            "test_case": test_config['type'],
+            "sdc_template": test_config['sdc'],
+            "seed": seed,
+            "use_params": use_params,
+            "placement_type": placement_type,
+            "analytical_solver": analytical_solver,
+            "ap_timing_tradeoff": ap_timing_tradeoff,
+            "hold": hold
+        }
     
     # 3. Dump to a JSON file
     config_path = result_dir / "config.json"
@@ -591,7 +608,7 @@ def make_vpr_summary(temp_dir):
     for match in re.finditer(r"Constrained Clock\s+(.*)", content):
         constrained_clk.append(match.group(1))
 
-    constrained_clk_str = '\n  '.join(constrained_clk)
+    constrained_clk_str = '  \n'.join(constrained_clk)
     
     # Transform datatype
     total_nets = int(global_net.group(1)) + int(routed_net.group(1))
@@ -623,17 +640,13 @@ def make_vpr_summary(temp_dir):
     
     # Parse detailed setup analysis
     setup_report = parse_timing_report(timing_setup_file, is_skew=False)
-    
-    # Parse unconstrained paths
-        
+
     # Parse skew hold
     skew_hold_report = parse_timing_report(skew_hold_file, is_skew=True)
     
-    # Parse skew setup  
+    # Parse skew setup
     skew_setup_report = parse_timing_report(skew_setup_file, is_skew=True)
-      
-        # TODO: timing path 갯수
-    
+
     # Write timing summary that we have parsed
     timing_summary = [f'Number of global nets: {global_net.group(1)}', f'Number of routed nets: {routed_net.group(1)}', 
                       f'Total number of nets: {total_nets}', f'Wirelength: {wirelength}', 
@@ -922,8 +935,19 @@ if __name__ == "__main__":
     
     '''
 
-    construct_sdc(config.create_clock_rca)
-    run_vpr(test_config=config.create_clock_rca, sdc_dir=Path('/home/minchan/work/fpga-timing-benchmarks/results/timing/create_clock_rca/sdc'), seed=1, place_algorithm='slack_timing', place_agent_algorithm='softmax')
+    test_sdc_dir = construct_sdc(config.create_clock_rca)
+    run_vpr(test_config=config.create_clock_rca, sdc_dir=test_sdc_dir, seed=1, placement_type='analytical')
+
+    # Argument Parser
+    parser = argparse.Argumentparser(descriptioin="Execute the Timing Benchmark")
+    parser.add_argument('--stage', required=True, choices=['generate_sdc', 'run_vpr', 'analyze'], help='Specify Which Stage to Run')
+    parser.add_argument('--placement_type')
+    parser.add_argument('--sdc_dir')  # The flow should be able to run without any sdcs.
+    parser.add_argument('--seed', )  # Should be a list (for seed sweeps)
+    parser.add_argument('--type', )  # Which test case to run
+    
+
+    for s in seed:
 
     '''
     parser = argparse.ArgumentParser(description="Run Timing Test")
