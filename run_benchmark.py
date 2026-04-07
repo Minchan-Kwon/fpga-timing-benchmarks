@@ -10,8 +10,8 @@ import pathlib
 from string import Template
 from subprocess import Popen, PIPE, TimeoutExpired
 from typing import List
-from config import RESULTS_DIR, MICRO_ROOT, ARCH_FILE, TIMING_TESTS, VTR_ROOT, LIBERTY_FILE
 import config
+from config import *
 from matplotlib import pyplot as plt
 from matplotlib import colors
 import seaborn as sns
@@ -23,7 +23,7 @@ import json
 # TODO: use try-except for error handling
 # TODO: Clean up code, especially function arguments
 # TODO: Make CLI runnable
-# TODO: Implement analyze_result(), for seed sweep analysis 
+# TODO: Implement analyze_result(), for seed sweep analysis
 
 def construct_sdc(test_config):
     '''
@@ -104,7 +104,7 @@ def construct_sdc(test_config):
                 
     print(f"SDC Generation for {test_config['type']} Complete.\n")       
              
-    return out_dir 
+    return out_dir
 
 # No need for synthesis. All SDCs are blif-specific. 
 def run_synthesis(test_config):
@@ -216,7 +216,7 @@ def run_vpr(test_config, sdc_dir=None, seed=1, **kwargs):
         except subprocess.CalledProcessError as e:
             print(f"VPR Failed: {e}\n")
             print(f"STDOUT: {e.stdout}\n")
-            print(f"STDERR: {e.stderr}\n")
+            #print(f"STDERR: {e.stderr}\n")
             raise
 
         # Print whether SDC was found
@@ -245,11 +245,12 @@ def run_vpr(test_config, sdc_dir=None, seed=1, **kwargs):
 def get_sdc_list(sdc_dir=None):
     '''
     Returns a list of SDC files located under the provided 'sdc_dir'.
+    There will always be a None object in the list for baseline testing.
 
     Args:
         sdc_dir (str): The directory in which the SDC files are located
     Returns:
-        sdc_list (list): A list of Path objects 
+        sdc_list (list): A list of Path objects
     '''
 
     if sdc_dir is None:
@@ -264,6 +265,7 @@ def get_sdc_list(sdc_dir=None):
         sdc_list = list(sdc_dir.glob("*.sdc"))
         if not sdc_list:
             print(f"Warning: No SDC files found in {sdc_dir}")
+        sdc_list.insert(0,None)
         return sdc_list
     else:
         print(f"Error: Path {sdc_dir} does not exit.")
@@ -361,7 +363,6 @@ def build_vpr_command(test_config, sdc=None, seed=1, **kwargs):
         '--write_timing_summary', 'timing_summary.txt',
         '--generate_net_timing_report', 'on',
         # Options for post-implementation timing analysis with OpenSTA
-        '--gen_post_implementation_sdc', 'on',
         '--gen_post_synthesis_netlist', 'on',
         '--timing_report_skew', 'on'
     ]
@@ -403,6 +404,7 @@ def build_vpr_command(test_config, sdc=None, seed=1, **kwargs):
     # Specify SDC file
     if sdc is not None:
         cmd += ['--sdc_file', rf'{sdc}']
+        cmd += ['--gen_post_implementation_sdc', 'on']
 
     # Save VPR graphics
     if test_config['graphics'] == True:
@@ -926,28 +928,84 @@ def analyze_result():
     '''
     # TODO: Implement this function, however it is lower in priority.
 
-if __name__ == "__main__":
+def main():
     '''
-    CLI Options:
-    --algorithm 
-    --sdc 
-    --seed 
-    
     '''
+    # Argument Parser
+    parser = argparse.ArgumentParser(description="Execute the Timing Benchmark")
 
+    # Test config
+    parser.add_argument('--test', type=str, required=True, 
+                        help="테스트할 설정 이름 (예: create_clock_rca)")
+
+    # Seed and SDC
+    parser.add_argument('--seed', type=int, nargs='+', default=[1], help="배치(Placement) 시드 값 목록 (예: --seed 1 2 3)") # Should be list
+    parser.add_argument('--sdc_dir', type=str, help="", default=None) # The flow should be able to run without any sdcs.
+
+    # VPR algorithm
+    parser.add_argument('--placement_type', choices=['timing_driven', 'analytical'], 
+                        default='timing_driven', help="배치 유형 선택")
+    parser.add_argument('--place_algorithm', choices=['criticality_timing', 'slack_timing'], 
+                        default='criticality_timing', help="타이밍 기반 배치 알고리즘")
+    parser.add_argument('--place_agent_algorithm', choices=['e_greedy', 'softmax'],
+                        default='softmax')
+    parser.add_argument('--analytical_solver', choices=['qp-hybrid', 'lp-b2b'], 
+                        default='qp-hybrid', help="Analytical 배치 솔버")
+    parser.add_argument('--ap_timing_tradeoff', type=float, default=0.5, 
+                        help="Analytical 배치의 Timing tradeoff (0.0~1.0)")
+    parser.add_argument('--hold', action='store_true', help="Hold 타임 분석 활성화")
+    parser.add_argument('--num_paths', type=int, default=100, help="리포트할 타이밍 패스 개수")
+
+    # Misc
+    parser.add_argument('--use_params', action='store_true')
+
+    args = parser.parse_args()  # Parse arguments
+
+    # Get the configuration dictionary from config.py
+    try:
+        test_config = getattr(config, args.test)
+    except AttributeError:
+        print(f"Error: '{args.test}' doesn't exist in 'config.py'.")
+        sys.exit(1)
+
+    # SDC
+    try:
+        # Use the given SDC directory, if not given, create sdc based on template
+        sdc_dir = args.sdc_dir if args.sdc_dir else construct_sdc(test_config)
+    except Exception as e:
+        print(f"Error during SDC generation: {e}")
+        sys.exit(1)
+
+    # Run VPR
+    try:
+        print(f"Running VPR for {args.test}")
+        for seed in args.seed:
+            # Run unconstrained test first
+            run_vpr(
+                test_config=test_config,
+                sdc_dir = sdc_dir,
+                seed=seed,
+                placement_type=args.placement_type,
+                place_algorithm=args.place_algorithm,
+                place_agent_algorithm=args.place_agent_algorithm,
+                analytical_solver=args.analytical_solver,
+                ap_timing_tradeoff=args.ap_timing_tradeoff,
+                hold=args.hold,
+                use_params=args.use_params,
+                num_paths=args.num_paths
+            )
+    except Exception as e:
+        print(f"Error during VPR run: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+    '''
     test_sdc_dir = construct_sdc(config.create_clock_rca)
     run_vpr(test_config=config.create_clock_rca, sdc_dir=test_sdc_dir, seed=1, placement_type='analytical')
+    '''
 
-    # Argument Parser
-    parser = argparse.Argumentparser(descriptioin="Execute the Timing Benchmark")
-    parser.add_argument('--stage', required=True, choices=['generate_sdc', 'run_vpr', 'analyze'], help='Specify Which Stage to Run')
-    parser.add_argument('--placement_type')
-    parser.add_argument('--sdc_dir')  # The flow should be able to run without any sdcs.
-    parser.add_argument('--seed', )  # Should be a list (for seed sweeps)
-    parser.add_argument('--type', )  # Which test case to run
-    
-
-    for s in seed:
 
     '''
     parser = argparse.ArgumentParser(description="Run Timing Test")
