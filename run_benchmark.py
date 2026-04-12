@@ -187,7 +187,8 @@ def run_vpr(test_config: dict, sdc_dir: str=None, seed: int=1, **kwargs):
     sdc_list = get_sdc_list(sdc_dir)
 
     # Create a directory where the VPR output files will be moved to
-    result_dir = create_result_dir(base_dir=RESULTS_DIR/'timing'/test_config['type'], seed=seed, kwargs)
+    # kwargs['placement_type'] is 
+    result_dir, kwargs['placement_type'] = create_result_dir(base_dir=RESULTS_DIR/'timing'/test_config['type'], seed=seed, **kwargs)
 
     # Write the experiment parameters as a JSON file
     make_json(test_config=test_config, result_dir=result_dir, seed=seed, **kwargs)
@@ -279,6 +280,7 @@ def create_result_dir(base_dir: Path, seed: int, **kwargs):
             hold (bool): Whether to enable hold analysis.
     Returns:
         Path: Path to the created result directory
+        str: The updated '--placement_type' option for VPR
     '''
     folder_name = f"seed{seed:02d}"
 
@@ -286,6 +288,14 @@ def create_result_dir(base_dir: Path, seed: int, **kwargs):
     place_algorithm = kwargs.get('place_algorithm', 'criticality_timing')
     analytical_solver = kwargs.get('analytical_solver', 'lp-b2b')
     hold = kwargs.get('hold', False)
+
+    # Invalid placement type specified, resort to timing driven placement
+    if placement_type not in ('timing_driven', 'analytical'):
+        print(f"Invalid placement type {placement_type} specified. Using timing-driven \
+        placement instead.")
+        placement_type = 'timing_driven'  # Modify the VPR arguments
+        # This part exists because this function is the first to be called within 'run_vpr'
+        # This function returns placement_type so that the caller can override its placement_type if it was invalid
 
     # Add the VPR run parameters for the base folder name
     if placement_type == "timing_driven":
@@ -299,29 +309,23 @@ def create_result_dir(base_dir: Path, seed: int, **kwargs):
     elif placement_type == "analytical":
         folder_name += "_analytical"
         folder_name += f"_{analytical_solver}"
-    
-    else:  # Invalid placement type specified, resort to timing driven placement
-        print(f"Invalid placement type {placement_type} specified. Using timing-driven \
-        placement instead.")
-        kwargs['placement_type'] = 'timing_driven'  # Modify the VPR arguments
-        # This part exists because this function is the first to be called within 'run_vpr'
-        # If a wrong placement_type is specified, it will override the caller's kwarg
 
     if hold:
         folder_name += "_hold"
 
     # Add a number to prevent overwriting exisitng result directories
-    # TODO: Be careful not to fall in infinite loop
     i = 0
-    while True:
+    while i < 100:
         new_folder_name = f"{folder_name}{i:02d}"
         full_path = base_dir / new_folder_name
 
         if not full_path.exists():
             full_path.mkdir(parents=True)
-            return full_path
+            return full_path, placement_type
 
         i += 1
+
+    raise RuntimeError(f"Could not create result directory under {base_dir} after {MAX_RETRIES} attempts. Please remove any stale result directories.")
 
 def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
     '''
@@ -981,7 +985,7 @@ def main():
     # TODO: Implement the analyze_result step where it analyzes/summarizes the seed sweep results after VPR
     # parser.add_argument('--analyze_result', type=str, action='store_true', help="Analyze benchmark results")
     parser.add_argument('--seed', type=int, nargs='+', default=[1], help="Seed for placement (e.g., 1 3 5).") 
-    parser.add_argument('--sdc_dir', type=str, help="", default=None, 
+    parser.add_argument('--sdc_dir', type=str, default=None,
                         help="SDC directory. Specifying it will override the generated SDCs.")
 
     # VPR algorithm
