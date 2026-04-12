@@ -16,6 +16,8 @@ sudo apt install libtbb-dev
 
 Open `config.py` and set `VTR_ROOT` to the absolute path of your local VTR installation. The other path variables are relative to the repository root and do not need to be changed.
 
+A dictionary describing a testcase should also be defined in `config.py`. For more information on how to define a test case in `config.py`, read [Defining a Test Case](#define_test_case).
+
 ### 3. Activate the Virtual Environment
 
 Activate the VTR virtual environment before running the script:
@@ -43,7 +45,7 @@ Replace `<PATH_TO_VTR>` with the absolute path to your VTR installation.
 | `--hold` | flag | `False` | Enables hold analysis using `--routing_budgets_algorithm yoyo`. |
 | `--num_paths` | `int` | `100` | Number of timing paths to include in the report. |
 | `--use_params` | flag | `False` | Uses parameters in the post-synthesis netlist. Disable for OpenSTA compatibility. |
-| `--num_workers` | `int` | `1` | Number of parallel workers VPR may use. Requires `libtbb-dev`. |
+| `--num_workers` | `int` | `1` | Number of parallel workers VPR may use. Argument `0` tells VPR to use as many workers as possible. Requires `libtbb-dev`. |
 
 ---
 
@@ -167,7 +169,7 @@ main()
 - **`analyze_result()`** — Placeholder for future seed sweep analysis across multiple result directories (not yet implemented).
 
 ---
-
+<a id="define_test_case"></a>
 ## Defining a Test Case
 
 Each timing benchmark test case is defined as a Python dictionary in `config.py` and passed to `run_benchmark.py` via `--test`. Below is the full dictionary format with a description of each field.
@@ -248,18 +250,6 @@ create_generated_clock -source [get_clocks clk] -divide_by 2 {*641*.Q*}
 }
 ```
 
-### Registering the Test Case
-
-Once defined, add the dictionary name to `TIMING_TESTS` in `config.py` to include it in the suite. The variable name of the dictionary (e.g., `create_clock_rca`) is what you pass to `--test` on the command line.
-
-```python
-TIMING_TESTS = [create_clock_rca, create_generated_clock_clock_divider_base]
-```
-
-```bash
-python run_benchmark.py --test create_clock_rca
-```
-
 ---
 
 ## To Be Implemented
@@ -268,12 +258,9 @@ The following features are noted as pending in the codebase.
 
 | Priority | Location | Description |
 |---|---|---|
-| High | `main()` | **Seed sweep post-analysis** — After running VPR across multiple seeds, automatically invoke `analyze_result()` to summarize and compare timing metrics across seeds. The `--analyze_result` flag is already stubbed out in the argument parser but is currently commented out. |
 | High | `main()` | **Multi-config iteration** — When `--test` resolves to a list of test configurations in `config.py`, `run_vpr()` should iterate over each config in the list rather than treating the whole list as a single test case. |
-| High | `main()` | **CLI cleanup** — General cleanup of the command-line interface (argument grouping, help text, etc.). |
-| High | Top-level | **Benchmark selection** — Identify and finalize the set of benchmark circuits to use for the timing experiments. |
+| High | `config.py` | **Benchmark selection** — Identify and finalize the set of benchmark circuits to use for the timing experiments. |
 | Medium | `make_vpr_summary()` | **Parse constrained vs. unconstrained path counts** — Extract and report how many timing paths are constrained vs. unconstrained from `vpr.out`. |
 | Medium | `make_vpr_summary()` | **Parse VPR runtime** — Extract and record the total VPR execution time from `vpr.out`. |
 | Medium | Top-level | **Additional analysis functions** — Expand placement analysis utilities beyond the current `get_min_distance()`, for example functions that compute other spatial metrics from the `.place` file. |
 | Low | `analyze_result()` | **Implement `analyze_result()`** — Build out the full implementation to compare timing results across seeds and/or test configurations (e.g., averaging CPD, WNS, TNS over multiple seeds). |
-| Low | `create_result_dir()` | **Infinite loop guard** — The directory naming loop that appends an incrementing index to avoid overwriting existing result directories has no iteration limit. Add a maximum retry count or a more robust naming scheme. |
