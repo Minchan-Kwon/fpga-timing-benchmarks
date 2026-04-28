@@ -5,16 +5,22 @@ import argparse
 from pathlib import Path
 from typing import List
 import config
-from config import *
 from matplotlib import pyplot as plt
 import seaborn as sns
 import shutil
 import json
+from itertools import product
 
-# TODO: Find benchmarks (Sunday)
 # TODO: Clean up CLI
 # TODO: Implement analyze_result(), for seed sweep analysis
 # TODO: More analysis functions such as get_min_distance
+# TODO: Issue where it doesn't print the exception message in main() when wrong blif specified
+# TODO: Omit unnecessary VPR command flags such as gen_post_implementation_netlist -> Cause of long runtime
+# TODO: Change name for MICRO_ROOT, reorganize benchmark directory
+# TODO: Parse number of blocks from resource.txt
+# TODO: Elaborate on the 'default' key in SDC formatting in config.py. Is it really necessary? A better way to organize the configuration of SDCs?
+# TODO: Fix wildcard import
+# TODO: Running multiple tests at once: If a list is given in the command line, iterate over the list of test configs.
 
 def construct_sdc(test_config: dict):
     '''
@@ -26,72 +32,63 @@ def construct_sdc(test_config: dict):
     Returns:
         Path: Directory in which the SDCs are saved.
     '''
-    # List contains generated sdc file names
-    generated_sdc_list = []
-
     # Define out_dir (e.g. ./results/timing/create_clock_rca/sdc)
-    out_dir = RESULTS_DIR / 'timing' / test_config['type'] / 'sdc'
+    out_dir = config.RESULTS_DIR / 'timing' / test_config['type'] / 'sdc'
 
     # Remove any existing SDC files
-    if out_dir.exists(): 
+    if out_dir.exists():
         shutil.rmtree(out_dir)  # Delete all subdirectories and files
         print(f"Cleaned existing directory: {out_dir}")
-    
+
     # Create out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Arguments
-    sdc_template = test_config['sdc'] # SDC template
+    sdc_template = test_config['sdc'].strip() # SDC template
     params = test_config['param'] # Parameters
-    
+
     # SDC template has no parameters to change
-    if params is None: 
+    if params is None:
         out_filename = test_config['type'] + '.sdc'
         out_filepath = out_dir / out_filename
         
         with open(out_filepath, 'w') as out_sdc:
             out_sdc.write(sdc_template)
         
-        generated_sdc_list.append(out_filepath)
         print(f"Generated SDC: {out_filepath}")
     
     # Replace parameter values in the SDC template
-    else: 
-        # Save default value for all params
-        defaults = {p['name']: p['default'] for p in params} 
-        
-        # Iterate over all params
+    else:
+        # Create a list of parameter values (list of lists)
+        param_values = []
+        param_names = []
         for param in params:
-            param_name = param['name']
+            param_names.append(param['name'])
+            param_values.append(param['values'])
+
+        # Unpack the list and get the cartesian product of the lists
+        param_combinations = product(*param_values)
+
+        for p_combination in param_combinations:
+
+            new_constraint = sdc_template # Copy the SDC template
+            filename_parts = [] # List of file name parts
+
+            for i in range(len(param_names)):
+                # Replace the parameter placeholder with a value
+                new_constraint = new_constraint.replace(param_names[i], str(p_combination[i]))
+                
+                # Add the parameter name and value to the file name
+                filename_parts.append(f"{param_names[i].strip('<>')}-{p_combination[i]}")
+    
+            # Create file name (e.g. period-10.0_delay-10.0.sdc)
+            out_filepath = out_dir / ("_".join(filename_parts)+".sdc")
             
-            # Iterate over all values of each param
-            for val in param['values']:
-                current_values = defaults.copy()  # Copy the default values to 'current_values'
-                current_values[param_name] = val  # Substitute default value of current param
+            # Output the generated SDC
+            with open(out_filepath, 'w') as out_sdc:
+                out_sdc.write(new_constraint)
                 
-                new_constraint = sdc_template  # Copy sdc template
-                filename_parts = []  # List for file name generation
-                
-                # Substitute the parameters in the SDC with actual values
-                for p_name, p_val in current_values.items():
-                    str_val = str(p_val)
-                    new_constraint = new_constraint.replace(p_name, str_val)
-                    
-                    # Remove '<>' from filename_parts
-                    clean_name = p_name.strip('<>')
-                    filename_parts.append(f"{clean_name}_{str_val}")
-                
-                # Create file name (e.g. period_10.0.sdc)
-                out_filename = "_".join(filename_parts) + ".sdc"
-                out_filepath = out_dir / out_filename
-                
-                # Output the generated SDC
-                with open(out_filepath, 'w') as out_sdc:
-                    out_sdc.write(new_constraint)
-                
-                # Save the out file path to a list
-                generated_sdc_list.append(out_filepath)
-                print(f"Generated SDC: {out_filepath}")
+            print(f"Generated SDC: {out_filepath}")
                 
     print(f"SDC Generation for {test_config['type']} Complete.\n")       
              
@@ -115,7 +112,7 @@ def run_synthesis(test_config: dict):
         architecture_path = ARCH_FILE
         verilog_path = MICRO_ROOT / test['circuit']
         frontend = test['frontend']
-        output_path = RESULTS_DIR / 'blif' / f'{test['type']}.blif'
+        output_path = RESULTS_DIR / 'blif' / f"{test['type']}.blif"
         temp_dir = RESULTS_DIR / 'blif' / 'temp'
         
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -168,7 +165,7 @@ def run_vpr(test_config: dict, sdc_dir: str=None, seed: int=1, **kwargs):
         sdc_dir (str): The directory where SDC files are located. 
         seed (int): Use the given seed for placement.
         **kwargs: Keyword arguments for VPR.
-            use_params (Bool): Use parameters in the post-synthesis netlist. Set to False for OpenSTA.
+            use_params (str): Use parameters in the post-synthesis netlist. Set to 'off' for OpenSTA.
             placement_type (str): Choose 'timing_driven' or 'analytical' placement.
             place_algorithm (str): Choose 'criticality_timing' or 'slack_timing' for placement.
             place_agent_algorithm (str): Choose the RL agent algorithm 'e_greedy' or 'softmax' for placement.
@@ -336,7 +333,7 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
         sdc (Path): The path to an SDC file.
         seed (int): The seed to run VPR on.
         **kwargs: Keyword arguments for VPR.
-            use_params (Bool): Use parameters in the post-synthesis netlist. Set to False for OpenSTA.
+            use_params (str): Use parameters in the post-synthesis netlist. Set to 'off' for OpenSTA.
             placement_type (str): Choose 'timing_driven' or 'analytical' placement.
             place_algorithm (str): Choose 'criticality_timing' or 'slack_timing' for placement.
             place_agent_algorithm (str): Choose the RL agent algorithm 'e_greedy' or 'softmax' for placement.
@@ -376,7 +373,7 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
     # Use yoyo for hold tests, disable for normal setup tests
     budgets_algo = 'yoyo' if kwargs.get('hold') else 'disable'
     # Use parameters when generating post-implementation netlist
-    use_params = kwargs.get('use_params', True)
+    use_params = kwargs.get('use_params', 'on')
     # Number of timing paths to report
     num_paths = str(kwargs.get('num_paths', '100'))
     # Number of parallel workers VPR can use
@@ -426,7 +423,7 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
         cmd += ['--seed', f'{seed}']
 
     # Do not use parameters in post-synthesis netlist (flag for OpenSTA)
-    if use_params is False:
+    if use_params == 'off':
         cmd += ['--post_synth_netlist_module_parameters', 'off']
     
     # Configure how many timing paths to report 
@@ -441,6 +438,7 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
     # Save VPR graphics
     if test_config['graphics'] == True:
         cmd += ['--disp', 'on']
+        cmd += ['--auto', '2']  # You don't have to click any buttons to continue
         graphics_file = f"{sdc.name if sdc else 'default_sdc'}.png"
         cmd += ['--graphics_commands', f'save_graphics {graphics_file};']
 
@@ -481,7 +479,7 @@ def make_json(test_config: dict, result_dir: Path, seed: int, **kwargs):
         result_dir (Path): The JSON file will be saved under this directory.
         seed (int): Seed for placement in VPR
         **kwargs: Keyword arguments for VPR.
-            use_params (Bool): Use parameters in the post-synthesis netlist. Set to False for OpenSTA.
+            use_params (str): Use parameters in the post-synthesis netlist. Set to 'off' for OpenSTA.
             placement_type (str): Choose 'timing_driven' or 'analytical' placement.
             place_algorithm (str): Choose 'criticality_timing' or 'slack_timing' for placement.
             place_agent_algorithm (str): Choose the RL agent algorithm 'e_greedy' or 'softmax' for placement.
@@ -497,7 +495,7 @@ def make_json(test_config: dict, result_dir: Path, seed: int, **kwargs):
     analytical_solver = kwargs.get('analytical_solver', 'lp-b2b')
     ap_timing_tradeoff = str(kwargs.get('ap_timing_tradeoff', '0.5'))
     hold = kwargs.get('hold')
-    use_params = kwargs.get('use_params', 'False')
+    use_params = kwargs.get('use_params', 'on')
     
     # Save the run parameters in a dictionary format
     if placement_type == 'timing_driven':
@@ -1003,7 +1001,7 @@ def main():
     parser.add_argument('--num_paths', type=int, default=100, help="Number of paths to include in the report.")
 
     # Misc
-    parser.add_argument('--use_params', action='store_true', help="Use parameters in the post-synthesis netlist.")
+    parser.add_argument('--use_params', choices=['on', 'off'], help="Use parameters in the post-synthesis netlist.")
     parser.add_argument('--num_workers', type=int, default=1, help="Control how many parallel workers VPR may use")
 
     # Parse arguments
@@ -1044,52 +1042,13 @@ def main():
                 num_paths=args.num_paths,
                 num_workers=args.num_workers
             )
+    # TODO: There is an issue where e doesn't print.
     except Exception as e:
         print(f"Error during VPR run: {e}")
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
-    '''
-    test_sdc_dir = construct_sdc(config.create_clock_rca)
-    run_vpr(test_config=config.create_clock_rca, sdc_dir=test_sdc_dir, seed=1, placement_type='analytical')
-    '''
-
-
-    '''
-
-    # TODO: Finish implementing CLI
-    
-    
-    set_clock_groups_sdc = construct_sdc(TEST_DICT['set_clock_groups'])
-    for sdc in set_clock_groups_sdc:
-        test_config, place_file, _ = run_vpr(TEST_DICT['set_clock_groups'], sdc, random_seed = False)
-    #run_opensta(TEST_DICT['create_clock'], LIBERTY_FILE)
-        #distance.append(get_min_distance(place_file))
-    #visualize_result(test_config, distance, TEST_DICT['create_clock'][0]['param'][0]['values'])
-    
-    # Run baseline test without SDCs
-    run_unconstrained_test([TEST_DICT['set_input_delay'][0]], random_seed=False, use_params=True, t_driven=False, hold=False)
-    
-    # Construct SDCs to test
-    test_sdc = construct_sdc([TEST_DICT['set_input_delay'][0]])
-    
-    # Run experiment for all SDCs, parse 
-    for sdc in test_sdc:
-        test_config, place_file, temp_dir = run_vpr([TEST_DICT['set_input_delay'][0]], sdc, random_seed = False, use_params=True, t_driven=False, hold=False)
-        
-    # Run OpenSTA
-    #run_opensta(TEST_DICT['set_input_delay'], LIBERTY_FILE)
-
-    
-    create_clock_sdc = construct_sdc(TEST_DICT['set_input_delay'])
-    distance = []
-    for sdc in create_clock_sdc:
-        test_config, place_file, _ = run_vpr(TEST_DICT['set_input_delay'], sdc, random_seed=True)
-        
-        distance.append(get_min_distance(place_file))
-        
-    visualize_result(test_config, distance, TEST_DICT['set_input_delay'][0]['param'][0]['values'])
-    '''
+    #main()
+    construct_sdc(config.create_clock_rca)
     
