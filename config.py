@@ -42,9 +42,9 @@ create_clock_rca = {
     'top_level_module': 'rca',
     'sdc': """
 create_clock -period <period> {clk}
-create_clock -period 1.0 -name irrelevant_clock
-    """.strip(),
-    'param': [{'name': '<period>', 'default': None, 'values': [1.0, 3.0, 5.0, 10.0, 12.0]}],
+create_clock -period <delay> -name irrelevant_clock
+    """,
+    'param': [{'name': '<period>', 'values': [1.0, 3.0, 5.0, 10.0, 12.0]}, {'name': '<delay>', 'values': [1.0, 5.0]}],
     'layout': 'vtr_medium',
     'graphics': False
 }
@@ -60,10 +60,10 @@ create_generated_clock_clock_divider_base = {
 create_clock -period 10.0 clk
 set_clock_latency -source 5.0 [get_clocks clk]
 create_generated_clock -source [get_clocks clk] -divide_by 2 {*641*.Q*}
-    """.strip(),
+    """,
     'param': None,
     'layout': 'vtr_medium',
-    'graphics': False
+    'graphics': True
 }
 
 create_generated_clock_clock_divider = {
@@ -74,11 +74,65 @@ create_generated_clock_clock_divider = {
 create_clock -period 10.0 {clk}
 set_clock_latency -source 5.0 {clk}
 create_clock -period 10.0 {$dff~641^Q~0}
-    """.strip(),
+    """,
     'param': None,
     'layout': 'vtr_medium',
     'graphics': False
 }
+
+# Setup Tests: Large Designs
+# set_max_delay to constrain a certain path. 
+# Make VPR optimize for timing specifically instead of wirelength on large/complex circuits
+
+picorv32_base = {
+    'type': 'picorv32_base',
+    'blif': '',
+    'sdc': """
+create_clock -period 10.0 {clk}
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': True
+}
+
+picorv32 = {
+    'type': 'picorv32_setup',
+    'blif': 'picorv32.blif',
+    'sdc': """
+create_clock -period 0.0 {wb_clk_i}
+set_max_delay 6.3 -from [get_clocks wb_clk_i]
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': True
+
+}
+
+softmax_base = {
+    'type': 'softmax_base',
+    'blif': 'softmax.blif',
+    'sdc': """
+create_clock -period 9.0 {clk}
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': True
+}
+
+softmax = {
+    'type': 'softmax_setup',
+    'blif': 'softmax.blif',
+    'sdc': """
+create_clock -period 0.0 {clk}
+set_max_delay 9.6 -from [get_clocks clk]
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': True
+}
+
+# Hold Tests: AsyncFIFO, CDC
+# I think this would require that VPR correctly parses 'create_generated_clock'. 
 
 TIMING_TESTS = [create_clock_rca]
 

@@ -17,9 +17,6 @@ from itertools import product
 # TODO: Issue where it doesn't print the exception message in main() when wrong blif specified
 # TODO: Omit unnecessary VPR command flags such as gen_post_implementation_netlist -> Cause of long runtime
 # TODO: Change name for MICRO_ROOT, reorganize benchmark directory
-# TODO: Parse number of blocks from resource.txt
-# TODO: Elaborate on the 'default' key in SDC formatting in config.py. Is it really necessary? A better way to organize the configuration of SDCs?
-# TODO: Fix wildcard import
 # TODO: Running multiple tests at once: If a list is given in the command line, iterate over the list of test configs.
 
 def construct_sdc(test_config: dict):
@@ -178,14 +175,14 @@ def run_vpr(test_config: dict, sdc_dir: str=None, seed: int=1, **kwargs):
         result_dir (Path): Run results are stored here.
         
     '''
-    blif_file = MICRO_ROOT / test_config['blif'] # BLIF file
+    blif_file = config.MICRO_ROOT / test_config['blif'] # BLIF file
 
     # Get SDC files in 'sdc_dir' 
     sdc_list = get_sdc_list(sdc_dir)
 
     # Create a directory where the VPR output files will be moved to
     # kwargs['placement_type'] is 
-    result_dir, kwargs['placement_type'] = create_result_dir(base_dir=RESULTS_DIR/'timing'/test_config['type'], seed=seed, **kwargs)
+    result_dir, kwargs['placement_type'] = create_result_dir(base_dir=config.RESULTS_DIR/'timing'/test_config['type'], seed=seed, **kwargs)
 
     # Write the experiment parameters as a JSON file
     make_json(test_config=test_config, result_dir=result_dir, seed=seed, **kwargs)
@@ -222,10 +219,10 @@ def run_vpr(test_config: dict, sdc_dir: str=None, seed: int=1, **kwargs):
             png_file.rename(run_output_dir / graphics_file)
         
         # Make VPR summary and parse VPR timing reports
-        timing_summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt = make_vpr_summary(temp_dir)
+        summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt = make_vpr_summary(temp_dir)
 
         # Write parsed timing information to a new file
-        save_vpr_timing_report(run_output_dir, sdc, timing_summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt)
+        save_vpr_timing_report(run_output_dir, sdc, summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt)
 
         # Save the distribution plot to the result directory
         save_path_distribution(setup_rpt, run_output_dir)
@@ -347,13 +344,13 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
         Path: The VPR run directory.
     '''
     # BLIF file
-    blif_file = MICRO_ROOT / test_config['blif']
+    blif_file = config.MICRO_ROOT / test_config['blif']
     # FPGA architecture file
-    architecture_file = ARCH_FILE
+    architecture_file = config.ARCH_FILE
     # Device size
     layout = test_config['layout']
     # Directory that VPR will output its results to
-    temp_dir = RESULTS_DIR / 'timing' / test_config['type'] / 'vpr'
+    temp_dir = config.RESULTS_DIR / 'timing' / test_config['type'] / 'vpr'
     # timing_summary = temp_dir / 'timing_summary.txt' # Timing summary
 
     assert blif_file.exists()
@@ -381,7 +378,7 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
 
     # Build the default VPR command
     cmd = [
-        f'{VTR_ROOT}/vtr_flow/scripts/run_vtr_flow.py',
+        f'{config.VTR_ROOT}/vtr_flow/scripts/run_vtr_flow.py',
         f'{blif_file}',
         f'{architecture_file}',
         '-starting_stage', 'abc', # Start from ABC (Skip synthesis)
@@ -444,14 +441,14 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
 
     return cmd, graphics_file if test_config.get('graphics') else None, temp_dir
 
-def save_vpr_timing_report(result_dir: Path, sdc: Path, timing_summary: list, hold_rpt: list, setup_rpt: list, skew_hold_rpt: list, skew_setup_rpt: list):
+def save_vpr_timing_report(result_dir: Path, sdc: Path, summary: list, hold_rpt: list, setup_rpt: list, skew_hold_rpt: list, skew_setup_rpt: list):
     '''
     Writes the parsed VPR timing report to the result directory.
 
     Args:
         result_dir (Path): Where the timing reports will be saved.
         sdc (Path): The path to the SDC used to run VPR.
-        timing_summary (list): List of timing summary contents returned by 'make_vpr_summary()'.
+        summary (list): List of timing summary contents returned by 'make_vpr_summary()'.
         hold_rpt (list): List of hold report contents returned by 'make_vpr_summary()'.
         setup_rpt (list): List of setup report contents returned by 'make_vpr_summary()'.
         skew_hold_rpt (list): List of skew hold report contents returned by 'make_vpr_summary()'.
@@ -459,8 +456,8 @@ def save_vpr_timing_report(result_dir: Path, sdc: Path, timing_summary: list, ho
     '''
     # Write parsed timing information to a new file
     sdc_name = sdc.stem if sdc else 'default_sdc'
-    with open(result_dir / f'{sdc_name}_timing.txt', 'w') as f:
-        f.writelines('\n'.join(timing_summary))
+    with open(result_dir / f'{sdc_name}_summary.txt', 'w') as f:
+        f.writelines('\n'.join(summary))
     with open(result_dir / f'{sdc_name}_hold.txt', 'w') as f:
         f.writelines(hold_rpt)
     with open(result_dir / f'{sdc_name}_setup.txt', 'w') as f:
@@ -598,7 +595,7 @@ def run_opensta(test_config: dict, liberty_file: Path, tcl_file: Path=None):
 def make_vpr_summary(temp_dir: Path):
     '''
     This function does the following: 
-    - Writes a timing summary based on the output file 'vpr.out'.
+    - Writes a timing summary based on the output file 'vpr.out' and 'resources.txt'.
     - Parses VPR timing reports by calling the function 'parse_timing_report()'.
     
     Args:
@@ -612,10 +609,10 @@ def make_vpr_summary(temp_dir: Path):
         skew_setup_report (list): A list of skew setup paths.
     '''
     # TODO: Parse number of constrained vs unconstrained paths.
-    # TODO: Parse VPR run time
 
     # File paths to parse
     vpr_out_file = temp_dir / 'vpr.out'
+    resources_file = temp_dir / 'resources.txt'
     skew_hold_file = temp_dir / 'report_skew.hold.rpt'
     skew_setup_file = temp_dir / 'report_skew.setup.rpt'
     timing_hold_file = temp_dir / 'report_timing.hold.rpt'
@@ -641,6 +638,7 @@ def make_vpr_summary(temp_dir: Path):
     num_sdc = re.search(r"Applied (\d+) SDC commands", vpr_out_content) 
     num_sdc_clock = re.search(r"Timing constraints created (\d+) clocks", vpr_out_content)
     num_netlist_clock = re.search(r"Netlist contains (\d+) clocks", vpr_out_content)
+    runtime = re.search(r"The entire flow of VPR took ([\d\.]+) seconds", vpr_out_content)
 
     # Parse netlist clock information, iterates in case multiple clocks exist in the design
     netlist_clk_info = []  # Contains the existing netlist clocks
@@ -673,10 +671,26 @@ def make_vpr_summary(temp_dir: Path):
     num_sdc = num_sdc.group(1) if num_sdc else 'N/A'
     num_sdc_clock = num_sdc_clock.group(1) if num_sdc_clock else 'N/A'
     num_netlist_clock = num_netlist_clock.group(1)
+    runtime = runtime.group(1)
 
     # Condition for timing being met
     # Both setup and hold slack should be non-negative.
     timing_met = True if (float(sWNS) >= 0 and float(hWNS) >= 0) else False
+
+    # Read the 'resources.txt'
+    with open(resources_file, 'r') as f:
+        resource_content = f.read()
+    
+    # Match and parse resource usage from 'resources.txt'
+    netlist_io = re.search(r"Netlist io blocks:\s+(\d+)\.", resource_content)
+    netlist_clb = re.search(r"Netlist clb blocks:\s+(\d+)\.", resource_content)
+    netlist_mult36 = re.search(r"Netlist mult_36 blocks:\s+(\d+)\.", resource_content)
+    netlist_memory = re.search(r"Netlist memory blocks:\s+(\d+)\.", resource_content)
+
+    netlist_io = netlist_io.group(1)
+    netlist_clb = netlist_clb.group(1)
+    netlist_mult36 = netlist_mult36.group(1)
+    netlist_memory = netlist_memory.group(1)
     
     # Parse detailed hold analysis
     hold_report = parse_timing_report(timing_hold_file, is_skew=False)
@@ -691,16 +705,21 @@ def make_vpr_summary(temp_dir: Path):
     skew_setup_report = parse_timing_report(skew_setup_file, is_skew=True)
 
     # Write timing summary that we have parsed
-    timing_summary = [f'Number of global nets: {global_net.group(1)}', f'Number of routed nets: {routed_net.group(1)}', 
-                      f'Total number of nets: {total_nets}', f'Wirelength: {wirelength}', 
-                      f'Critical path delay: {cpd}ns', f'Fmax: {fmax}MHz', f'sWNS: {sWNS}', f'sTNS: {sTNS}',
-                      f'hWNS: {hWNS}', f'hTNS: {hTNS}', 
-                      f'Timing met: {timing_met}', f'Number of SDCs Applied: {num_sdc}',
-                      f'Number of constrained clocks: {num_sdc_clock}',
-                      f'List of constrained clocks:\n{constrained_clk_str}\n' 
-                      f'Number of netlist clocks: {num_netlist_clock}', f'Netlist clock information:\n{netlist_clk_info}']
+    summary = [f'Total VPR runtime: {runtime}s',
+                f'Number of global nets: {global_net.group(1)}', f'Number of routed nets: {routed_net.group(1)}', 
+                f'Total number of nets: {total_nets}', f'Wirelength: {wirelength}', 
+                f'Critical path delay: {cpd}ns', f'Fmax: {fmax}MHz', f'sWNS: {sWNS}', f'sTNS: {sTNS}',
+                f'hWNS: {hWNS}', f'hTNS: {hTNS}', 
+                f'Timing met: {timing_met}', f'Number of SDCs Applied: {num_sdc}',
+                f'Number of constrained clocks: {num_sdc_clock}',
+                f'List of constrained clocks:\n{constrained_clk_str}\n' 
+                f'Number of netlist clocks: {num_netlist_clock}', f'Netlist clock information:\n{netlist_clk_info}',
+                f'Netlist IO blocks: {netlist_io}',
+                f'Netlist CLB: {netlist_clb}',
+                f'Netlist mult_36: {netlist_mult36}',
+                f'Netlist memory: {netlist_memory}']
     
-    return timing_summary, hold_report, setup_report, skew_hold_report, skew_setup_report
+    return summary, hold_report, setup_report, skew_hold_report, skew_setup_report
 
 def parse_timing_report(file_path: Path, is_skew: bool=False):
     ''' 
@@ -1049,6 +1068,5 @@ def main():
 
 
 if __name__ == "__main__":
-    #main()
-    construct_sdc(config.create_clock_rca)
+    main()
     
