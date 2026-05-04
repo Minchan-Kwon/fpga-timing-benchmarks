@@ -168,7 +168,7 @@ def run_vpr(test_config: dict, sdc_dir: str = None, seed: int = 1, **kwargs):
             place_algorithm (str): Choose 'criticality_timing' or 'slack_timing' for placement.
             place_agent_algorithm (str): RL agent algorithm 'e_greedy'or 'softmax' for placement.
             analytical_solver (str): Choose 'qp-hybrid' or 'lp-b2b' for analytical placement.
-            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimzation and
+            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimization and
                                         1.0 for timing optimization.
             hold (Bool): Turn on hold analysis using '--routing_budgets_algorithm yoyo'.
             num_workers (int): Number of parallel workers VPR may use.
@@ -315,7 +315,7 @@ def create_result_dir(base_dir: Path, seed: int, **kwargs):
     if hold:
         folder_name += "_hold"
 
-    # Add a number to prevent overwriting exisitng result directories
+    # Add a number to prevent overwriting existng result directories
     i = 0
     while i < 100:
         new_folder_name = f"{folder_name}{i:02d}"
@@ -345,7 +345,7 @@ def build_vpr_command(test_config: dict, sdc: str = None, seed: int = 1, **kwarg
             place_algorithm (str): Choose 'criticality_timing' or 'slack_timing' for placement.
             place_agent_algorithm (str): RL agent algorithm 'e_greedy' or 'softmax' for placement.
             analytical_solver (str): Choose 'qp-hybrid' or 'lp-b2b' for analytical placement.
-            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimzation and
+            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimization and
                                         1.0 for timing optimization.
             hold (Bool): Turn on hold analysis using '--routing_budgets_algorithm yoyo'.
             num_workers (int): Number of parallel workers VPR may use.
@@ -423,7 +423,7 @@ def build_vpr_command(test_config: dict, sdc: str = None, seed: int = 1, **kwarg
         ]
     # Wrong placement type
     else:
-        print(f"Wrong placment type specified: {placement_type},\
+        print(f"Wrong placement type specified: {placement_type},\
               resorting to timing_driven placement.")
 
     # Seed
@@ -496,7 +496,7 @@ def make_json(test_config: dict, result_dir: Path, seed: int, **kwargs):
             place_algorithm (str): Choose 'criticality_timing' or 'slack_timing' for placement.
             place_agent_algorithm (str): RL agent algorithm 'e_greedy' or 'softmax' for placement.
             analytical_solver (str): Choose 'qp-hybrid' or 'lp-b2b' for analytical placement.
-            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimzation and
+            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimization and
                                         1.0 for timing optimization.
             hold (Bool): Turn on hold analysis using '--routing_budgets_algorithm yoyo'.
 
@@ -833,7 +833,7 @@ def get_min_distance(place_file: Path):
     Args:
         place_file (Path): Placement file containing the X, Y coordinates of each clusters.
 
-    Returs:
+    Returns:
         float: The minimum of the average distance to the four peripheries
     '''
     # Read placement file
