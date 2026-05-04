@@ -3,7 +3,6 @@ import re
 import sys
 import argparse
 from pathlib import Path
-from typing import List
 import config
 from matplotlib import pyplot as plt
 import seaborn as sns
@@ -15,17 +14,17 @@ from itertools import product
 # TODO: Implement analyze_result(), for seed sweep analysis
 # TODO: More analysis functions such as get_min_distance
 # TODO: Issue where it doesn't print the exception message in main() when wrong blif specified
-# TODO: Omit unnecessary VPR command flags such as gen_post_implementation_netlist -> Cause of long runtime
-# TODO: Change name for MICRO_ROOT, reorganize benchmark directory
-# TODO: Running multiple tests at once: If a list is given in the command line, iterate over the list of test configs.
+# TODO: Running multiple tests at once.
+
 
 def construct_sdc(test_config: dict):
     '''
-    Constructs multiple SDCs with different parameter values and returns a Path object to the generated SDC directory.
-    
-    Args: 
+    Constructs multiple SDCs with different parameter values and
+    returns a Path object to the generated SDC directory.
+
+    Args:
         test_config (dict): A dictionary of a test case description.
-    
+
     Returns:
         Path: Directory in which the SDCs are saved.
     '''
@@ -36,24 +35,23 @@ def construct_sdc(test_config: dict):
     if out_dir.exists():
         shutil.rmtree(out_dir)  # Delete all subdirectories and files
         print(f"Cleaned existing directory: {out_dir}")
-
     # Create out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Arguments
-    sdc_template = test_config['sdc'].strip() # SDC template
-    params = test_config['param'] # Parameters
+    sdc_template = test_config['sdc'].strip()  # SDC template
+    params = test_config['param']  # Parameters
 
     # SDC template has no parameters to change
     if params is None:
         out_filename = test_config['type'] + '.sdc'
         out_filepath = out_dir / out_filename
-        
+
         with open(out_filepath, 'w') as out_sdc:
             out_sdc.write(sdc_template)
-        
+
         print(f"Generated SDC: {out_filepath}")
-    
+
     # Replace parameter values in the SDC template
     else:
         # Create a list of parameter values (list of lists)
@@ -68,59 +66,60 @@ def construct_sdc(test_config: dict):
 
         for p_combination in param_combinations:
 
-            new_constraint = sdc_template # Copy the SDC template
-            filename_parts = [] # List of file name parts
+            new_constraint = sdc_template  # Copy the SDC template
+            filename_parts = []  # List of file name parts
 
             for i in range(len(param_names)):
                 # Replace the parameter placeholder with a value
                 new_constraint = new_constraint.replace(param_names[i], str(p_combination[i]))
-                
+
                 # Add the parameter name and value to the file name
                 filename_parts.append(f"{param_names[i].strip('<>')}-{p_combination[i]}")
-    
+
             # Create file name (e.g. period-10.0_delay-10.0.sdc)
             out_filepath = out_dir / ("_".join(filename_parts)+".sdc")
-            
+
             # Output the generated SDC
             with open(out_filepath, 'w') as out_sdc:
                 out_sdc.write(new_constraint)
-                
+
             print(f"Generated SDC: {out_filepath}")
-                
-    print(f"SDC Generation for {test_config['type']} Complete.\n")       
-             
+
+    print(f"SDC Generation for {test_config['type']} Complete.\n")
+
     return out_dir
+
 
 # No need for synthesis. All SDCs are blif-specific.
 def run_synthesis(test_config: dict):
     '''
     Synthesizes a circuit described in Verilog using Parmys or Odin II.
-    
+
     Args:
       test_config (dict): A dictionary of a test case description.
-    
+
     Returns:
       Path: Path to the created blif file
     '''
     blif_list = []
-    
+
     for test in test_config:
         # Prepare arguments for parmys/odin
-        architecture_path = ARCH_FILE
-        verilog_path = MICRO_ROOT / test['circuit']
+        architecture_path = config.ARCH_FILE
+        verilog_path = config.NETLIST_ROOT / test['circuit']
         frontend = test['frontend']
-        output_path = RESULTS_DIR / 'blif' / f"{test['type']}.blif"
-        temp_dir = RESULTS_DIR / 'blif' / 'temp'
-        
+        output_path = config.RESULTS_DIR / 'blif' / f"{test['type']}.blif"
+        temp_dir = config.RESULTS_DIR / 'blif' / 'temp'
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temp_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Commands to run synthesis
         cmd = []
-        
+
         if frontend == 'parmys':
             cmd = [
-                f'{VTR_ROOT}/vtr_flow/scripts/run_vtr_flow.py',
+                f'{config.VTR_ROOT}/vtr_flow/scripts/run_vtr_flow.py',
                 f'{verilog_path}',
                 f'{architecture_path}',
                 '-starting_stage', 'parmys',
@@ -128,20 +127,20 @@ def run_synthesis(test_config: dict):
                 '-temp_dir', f'{temp_dir}'
             ]
             print(f"Running Parmys to synthesize {test['circuit']}")
-        
+
         elif frontend == 'odin':
             cmd = [
-                f'{VTR_ROOT}/odin_ii/odin_ii',
+                f'{config.VTR_ROOT}/odin_ii/odin_ii',
                 '-a', f'{architecture_path}',
                 '-V', f'{verilog_path}',
                 '-o', f'{output_path}'
             ]
             print(f"Running Odin II to synthesize {test['circuit']}")
-            
+
         else:
             print("Unknown Synthesis Tool")
         try:
-            result = subprocess.run(cmd, check=True, capture_output= True, text=True)
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
             print(f"Synthesis Complete: {output_path.name}")
             blif_list.append(output_path)
         except subprocess.CalledProcessError as e:
@@ -149,40 +148,44 @@ def run_synthesis(test_config: dict):
             print(f"Command: {e.cmd}")
             print(f"Exit Code: {e.returncode}")
             print(f"Stderr: {e.stderr}")
-    
+
     return blif_list
 
-def run_vpr(test_config: dict, sdc_dir: str=None, seed: int=1, **kwargs):
+
+def run_vpr(test_config: dict, sdc_dir: str = None, seed: int = 1, **kwargs):
     '''
     Run place and route on the given test case with VPR.
-    VPR will generate post-implementation netlists and timing analysis files that can be analyzed later on. 
-    
+    VPR will generate post-implementation netlists and
+    timing analysis files that can be analyzed later on.
+
     Args:
         test_config (dict): A dictionary of a single test case description.
-        sdc_dir (str): The directory where SDC files are located. 
+        sdc_dir (str): The directory where SDC files are located.
         seed (int): Use the given seed for placement.
         **kwargs: Keyword arguments for VPR.
-            use_params (str): Use parameters in the post-synthesis netlist. Set to 'off' for OpenSTA.
+            use_params (str): Use parameters in the post-synthesis netlist.
             placement_type (str): Choose 'timing_driven' or 'analytical' placement.
             place_algorithm (str): Choose 'criticality_timing' or 'slack_timing' for placement.
-            place_agent_algorithm (str): Choose the RL agent algorithm 'e_greedy' or 'softmax' for placement.
+            place_agent_algorithm (str): RL agent algorithm 'e_greedy'or 'softmax' for placement.
             analytical_solver (str): Choose 'qp-hybrid' or 'lp-b2b' for analytical placement.
-            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimzation and 1.0 for timing optimization. 
+            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimzation and
+                                        1.0 for timing optimization.
             hold (Bool): Turn on hold analysis using '--routing_budgets_algorithm yoyo'.
             num_workers (int): Number of parallel workers VPR may use.
-      
+
     Returns:
         result_dir (Path): Run results are stored here.
-        
-    '''
-    blif_file = config.MICRO_ROOT / test_config['blif'] # BLIF file
 
-    # Get SDC files in 'sdc_dir' 
+    '''
+    blif_file = config.NETLIST_ROOT / test_config['blif']  # BLIF file
+
+    # Get SDC files in 'sdc_dir'
     sdc_list = get_sdc_list(sdc_dir)
 
     # Create a directory where the VPR output files will be moved to
-    # kwargs['placement_type'] is 
-    result_dir, kwargs['placement_type'] = create_result_dir(base_dir=config.RESULTS_DIR/'timing'/test_config['type'], seed=seed, **kwargs)
+    # kwargs['placement_type'] is
+    result_dir, kwargs['placement_type'] = create_result_dir(
+        base_dir=config.RESULTS_DIR/'timing'/test_config['type'], seed=seed, **kwargs)
 
     # Write the experiment parameters as a JSON file
     make_json(test_config=test_config, result_dir=result_dir, seed=seed, **kwargs)
@@ -190,7 +193,8 @@ def run_vpr(test_config: dict, sdc_dir: str=None, seed: int=1, **kwargs):
     # Run the test for all the SDCs in 'sdc_dir'
     for sdc in sdc_list:
 
-        cmd, graphics_file, temp_dir = build_vpr_command(test_config=test_config, sdc=sdc, seed=seed, **kwargs)
+        cmd, graphics_file, temp_dir = build_vpr_command(test_config=test_config,
+                                                         sdc=sdc, seed=seed, **kwargs)
 
         # Run VPR with the prepared command
         try:
@@ -203,7 +207,7 @@ def run_vpr(test_config: dict, sdc_dir: str=None, seed: int=1, **kwargs):
         except subprocess.CalledProcessError as e:
             print(f"VPR Failed: {e}\n")
             print(f"STDOUT: {e.stdout}\n")
-            #print(f"STDERR: {e.stderr}\n")
+            # print(f"STDERR: {e.stderr}\n")
             raise
 
         # Print whether SDC was found
@@ -212,24 +216,26 @@ def run_vpr(test_config: dict, sdc_dir: str=None, seed: int=1, **kwargs):
         # Directory where each individual test results are saved
         run_output_dir = result_dir / f"{sdc.name if sdc else 'default_sdc'}"
         run_output_dir.mkdir(parents=True)
-        
+
         # Move the graphics file from 'temp_dir' to the result directory
-        if test_config['graphics'] == True:
+        if test_config['graphics']:
             png_file = temp_dir / graphics_file
             png_file.rename(run_output_dir / graphics_file)
-        
+
         # Make VPR summary and parse VPR timing reports
         summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt = make_vpr_summary(temp_dir)
 
         # Write parsed timing information to a new file
-        save_vpr_timing_report(run_output_dir, sdc, summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt)
+        save_vpr_timing_report(run_output_dir, sdc, summary, hold_rpt,
+                               setup_rpt, skew_hold_rpt, skew_setup_rpt)
 
         # Save the distribution plot to the result directory
         save_path_distribution(setup_rpt, run_output_dir)
-        
+
     return result_dir
 
-def get_sdc_list(sdc_dir: str=None):
+
+def get_sdc_list(sdc_dir: str = None):
     '''
     Returns a list of SDC files located under the provided 'sdc_dir'.
     There will always be a None object in the list for baseline testing.
@@ -241,7 +247,7 @@ def get_sdc_list(sdc_dir: str=None):
     '''
 
     if sdc_dir is None:
-        return [None] # No SDCs in the directory, use VPR's default constraint
+        return [None]  # No SDCs in the directory, use VPR's default constraint
 
     # Convert to Path object
     sdc_dir = Path(sdc_dir)
@@ -252,16 +258,17 @@ def get_sdc_list(sdc_dir: str=None):
         sdc_list = list(sdc_dir.glob("*.sdc"))
         if not sdc_list:
             print(f"Warning: No SDC files found in {sdc_dir}")
-        sdc_list.insert(0,None)
+        sdc_list.insert(0, None)
         return sdc_list
     else:
         print(f"Error: Path {sdc_dir} does not exit.")
         return [None]
 
+
 def create_result_dir(base_dir: Path, seed: int, **kwargs):
     '''
-    Creates a directory where the timing reports will be saved. 
-    The directory will have a unique name based on the combination of the seed, 
+    Creates a directory where the timing reports will be saved.
+    The directory will have a unique name based on the combination of the seed,
     placement algorithm, and other VPR parameters used to run the test.
 
     Args:
@@ -289,7 +296,8 @@ def create_result_dir(base_dir: Path, seed: int, **kwargs):
         placement instead.")
         placement_type = 'timing_driven'  # Modify the VPR arguments
         # This part exists because this function is the first to be called within 'run_vpr'
-        # This function returns placement_type so that the caller can override its placement_type if it was invalid
+        # This function returns placement_type so that the caller can override its
+        # placement_type if it was invalid
 
     # Add the VPR run parameters for the base folder name
     if placement_type == "timing_driven":
@@ -319,23 +327,26 @@ def create_result_dir(base_dir: Path, seed: int, **kwargs):
 
         i += 1
 
-    raise RuntimeError(f"Could not create result directory under {base_dir} after {MAX_RETRIES} attempts. Please remove any stale result directories.")
+    raise RuntimeError(f"Could not create result directory under {base_dir}\
+                       after 100 attempts. Please remove any stale result directories.")
 
-def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
+
+def build_vpr_command(test_config: dict, sdc: str = None, seed: int = 1, **kwargs):
     '''
     Creates a command for VPR execution.
 
-    Args: 
+    Args:
         test_config (dict): A dictionary of a test case description.
         sdc (Path): The path to an SDC file.
         seed (int): The seed to run VPR on.
         **kwargs: Keyword arguments for VPR.
-            use_params (str): Use parameters in the post-synthesis netlist. Set to 'off' for OpenSTA.
+            use_params (str): Use parameters in the post-synthesis netlist.
             placement_type (str): Choose 'timing_driven' or 'analytical' placement.
             place_algorithm (str): Choose 'criticality_timing' or 'slack_timing' for placement.
-            place_agent_algorithm (str): Choose the RL agent algorithm 'e_greedy' or 'softmax' for placement.
+            place_agent_algorithm (str): RL agent algorithm 'e_greedy' or 'softmax' for placement.
             analytical_solver (str): Choose 'qp-hybrid' or 'lp-b2b' for analytical placement.
-            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimzation and 1.0 for timing optimization. 
+            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimzation and
+                                        1.0 for timing optimization.
             hold (Bool): Turn on hold analysis using '--routing_budgets_algorithm yoyo'.
             num_workers (int): Number of parallel workers VPR may use.
     Returns:
@@ -344,7 +355,7 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
         Path: The VPR run directory.
     '''
     # BLIF file
-    blif_file = config.MICRO_ROOT / test_config['blif']
+    blif_file = config.NETLIST_ROOT / test_config['blif']
     # FPGA architecture file
     architecture_file = config.ARCH_FILE
     # Device size
@@ -381,14 +392,13 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
         f'{config.VTR_ROOT}/vtr_flow/scripts/run_vtr_flow.py',
         f'{blif_file}',
         f'{architecture_file}',
-        '-starting_stage', 'abc', # Start from ABC (Skip synthesis)
-        '-temp_dir', f'{temp_dir}', # Output directory
-        '--write_block_usage', 'resources.txt', # Write FPGA resource usage as 'resources.txt'
+        '-starting_stage', 'abc',  # Start from ABC (Skip synthesis)
+        '-temp_dir', f'{temp_dir}',  # Output directory
+        '--write_block_usage', 'resources.txt',  # Write FPGA resource usage as 'resources.txt'
         '--device', f'{layout}',
-        '--write_timing_summary', 'timing_summary.txt',
         '--generate_net_timing_report', 'on',
         # Options for post-implementation timing analysis with OpenSTA
-        '--gen_post_synthesis_netlist', 'on',
+        # '--gen_post_synthesis_netlist', 'on',
         '--timing_report_skew', 'on',
         '--num_workers', f'{num_workers}'
     ]
@@ -412,8 +422,9 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
             '--route', '--analysis'  # Forces VPR to run routing and analysis stages
         ]
     # Wrong placement type
-    else: 
-        print(f"Wrong placment type specified: {placement_type}, resorting to timing_driven placement.")
+    else:
+        print(f"Wrong placment type specified: {placement_type},\
+              resorting to timing_driven placement.")
 
     # Seed
     if seed:
@@ -422,8 +433,8 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
     # Do not use parameters in post-synthesis netlist (flag for OpenSTA)
     if use_params == 'off':
         cmd += ['--post_synth_netlist_module_parameters', 'off']
-    
-    # Configure how many timing paths to report 
+
+    # Configure how many timing paths to report
     if num_paths != '100':
         cmd += ['--timing_report_npaths', f'{num_paths}']
 
@@ -433,7 +444,7 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
         cmd += ['--gen_post_implementation_sdc', 'on']
 
     # Save VPR graphics
-    if test_config['graphics'] == True:
+    if test_config['graphics']:
         cmd += ['--disp', 'on']
         cmd += ['--auto', '2']  # You don't have to click any buttons to continue
         graphics_file = f"{sdc.name if sdc else 'default_sdc'}.png"
@@ -441,7 +452,10 @@ def build_vpr_command(test_config: dict, sdc: str=None, seed: int=1, **kwargs):
 
     return cmd, graphics_file if test_config.get('graphics') else None, temp_dir
 
-def save_vpr_timing_report(result_dir: Path, sdc: Path, summary: list, hold_rpt: list, setup_rpt: list, skew_hold_rpt: list, skew_setup_rpt: list):
+
+def save_vpr_timing_report(result_dir: Path, sdc: Path, summary: list,
+                           hold_rpt: list, setup_rpt: list,
+                           skew_hold_rpt: list, skew_setup_rpt: list):
     '''
     Writes the parsed VPR timing report to the result directory.
 
@@ -467,21 +481,23 @@ def save_vpr_timing_report(result_dir: Path, sdc: Path, summary: list, hold_rpt:
     with open(result_dir / f'{sdc_name}_skew_setup.txt', 'w') as f:
         f.writelines(skew_setup_rpt)
 
+
 def make_json(test_config: dict, result_dir: Path, seed: int, **kwargs):
     '''
-    Creates a JSON file in the 'result_dir' containing the test parameters. 
+    Creates a JSON file in the 'result_dir' containing the test parameters.
 
     Args:
         test_config (dict): Dictionary of a test case configuration.
         result_dir (Path): The JSON file will be saved under this directory.
         seed (int): Seed for placement in VPR
         **kwargs: Keyword arguments for VPR.
-            use_params (str): Use parameters in the post-synthesis netlist. Set to 'off' for OpenSTA.
+            use_params (str): Use parameters in the post-synthesis netlist.
             placement_type (str): Choose 'timing_driven' or 'analytical' placement.
             place_algorithm (str): Choose 'criticality_timing' or 'slack_timing' for placement.
-            place_agent_algorithm (str): Choose the RL agent algorithm 'e_greedy' or 'softmax' for placement.
+            place_agent_algorithm (str): RL agent algorithm 'e_greedy' or 'softmax' for placement.
             analytical_solver (str): Choose 'qp-hybrid' or 'lp-b2b' for analytical placement.
-            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimzation and 1.0 for timing optimization. 
+            ap_timing_tradeoff (float): Any number between 0.0 for wirelength minimzation and
+                                        1.0 for timing optimization.
             hold (Bool): Turn on hold analysis using '--routing_budgets_algorithm yoyo'.
 
     '''
@@ -493,7 +509,7 @@ def make_json(test_config: dict, result_dir: Path, seed: int, **kwargs):
     ap_timing_tradeoff = str(kwargs.get('ap_timing_tradeoff', '0.5'))
     hold = kwargs.get('hold')
     use_params = kwargs.get('use_params', 'on')
-    
+
     # Save the run parameters in a dictionary format
     if placement_type == 'timing_driven':
         run_params = {
@@ -517,69 +533,71 @@ def make_json(test_config: dict, result_dir: Path, seed: int, **kwargs):
             "ap_timing_tradeoff": ap_timing_tradeoff,
             "hold": hold
         }
-    
+
     # Dump to a JSON file
     config_path = result_dir / "config.json"
     with open(config_path, 'w') as f:
         json.dump(run_params, f, indent=4)
 
-def run_opensta(test_config: dict, liberty_file: Path, tcl_file: Path=None):
+
+def run_opensta(test_config: dict, liberty_file: Path, tcl_file: Path = None):
     '''
-    Run OpenSTA to perform post-implementation timing analysis. 
-    
+    Run OpenSTA to perform post-implementation timing analysis.
+
     Args:
         test_config (dict): A dictionary describing a test case configuration.
         liberty_file (Path): Path to liberty file to be used for OpenSTA.
-        tcl_file (Path): A test-specific TCL file for timing reports. Runs default TCL if none specified.
+        tcl_file (Path): A test-specific TCL file for timing reports.
+                         Runs default TCL if none specified.
     '''
-    vpr_out_dir = RESULTS_DIR / 'timing' / test_config['type'] / 'vpr' # VPR output directory
-    temp_dir = RESULTS_DIR / test_config['type'] / 'opensta' # OpenSTA output directory
-    top_level_module = test_config['top_level_module'] # Top level module of the circuit
-    
+    vpr_out_dir = config.RESULTS_DIR/'timing'/test_config['type']/'vpr'  # VPR output directory
+    temp_dir = config.RESULTS_DIR / test_config['type'] / 'opensta'  # OpenSTA output directory
+    top_level_module = test_config['top_level_module']  # Top level module of the circuit
+
     # Make the directory to run OpenSTA in
     temp_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Get the post-implementation netlist, SDC and SDF from VPR
     post_implementation_netlist = next(vpr_out_dir.glob('*post_synthesis.v'), None)
     post_implementation_sdc = next(vpr_out_dir.glob('*post_synthesis.sdc'), None)
     post_implementation_sdf = next(vpr_out_dir.glob('*post_synthesis.sdf'), None)
-    
-    if tcl_file is None: 
+
+    if tcl_file is None:
         # Path to the TCL file to configure timing analysis
         tcl_file = temp_dir / 'run_opensta.tcl'
-        
+
         # Fill the TCL file with OpenSTA commands
         with open(tcl_file, 'w') as f:
             # Read a skeleton liberty file
-            # Note: The 'primitive.lib' file only contains timing characteristics of LUTs and FFs. 
+            # Note: The 'primitive.lib' file only contains timing characteristics of LUTs and FFs.
             f.write(f"read_liberty {liberty_file}\n")
-            f.write(f"read_verilog {post_implementation_netlist}\n") # Verilog file
-            f.write(f"link_design {top_level_module}\n") # Link the top module
-            f.write(f"read_sdf {post_implementation_sdf}\n") # SDF file
-            f.write(f"read_sdc {post_implementation_sdc}\n") # SDC file
-            
+            f.write(f"read_verilog {post_implementation_netlist}\n")  # Verilog file
+            f.write(f"link_design {top_level_module}\n")  # Link the top module
+            f.write(f"read_sdf {post_implementation_sdf}\n")  # SDF file
+            f.write(f"read_sdc {post_implementation_sdc}\n")  # SDC file
+
             f.write("report_checks "
-                "-group_path_count 100 "
-                "-digits 3 "
-                "-path_delay max "
-                "> open_sta_report_timing.setup.rpt\n")
+                    "-group_path_count 100 "
+                    "-digits 3 "
+                    "-path_delay max "
+                    "> open_sta_report_timing.setup.rpt\n")
             f.write("report_checks "
-                "-group_path_count 100 "
-                "-digits 3 "
-                "-path_delay min "
-                "> open_sta_report_timing.hold.rpt\n")
+                    "-group_path_count 100 "
+                    "-digits 3 "
+                    "-path_delay min "
+                    "> open_sta_report_timing.hold.rpt\n")
             f.write("report_wns\n")
             f.write("report_tns\n")
             f.write("report_checks "
                     "-unconstrained "
                     "> open_sta_report_unconstrained.rpt\n")
             f.write("report_clock_min_period")
-    
+
     cmd = ["sta",
-            "-exit",
-            "-no_splash",
-            tcl_file]
-    
+           "-exit",
+           "-no_splash",
+           tcl_file]
+
     # Run the subprocess
     try:
         print("Running OpenSTA\n")
@@ -592,15 +610,17 @@ def run_opensta(test_config: dict, liberty_file: Path, tcl_file: Path=None):
         print(f"STDOUT: {e.stdout}\n")
         raise
 
+
 def make_vpr_summary(temp_dir: Path):
     '''
-    This function does the following: 
+    This function does the following:
     - Writes a timing summary based on the output file 'vpr.out' and 'resources.txt'.
     - Parses VPR timing reports by calling the function 'parse_timing_report()'.
-    
+
     Args:
-        temp_dir (Path): The path given to VPR with the option '--temp_dir'. The directory where VPR run results are saved.
-    
+        temp_dir (Path): The path given to VPR with the option '--temp_dir'.
+                         The directory where VPR run results are saved.
+
     Returns:
         timing_summary (list): A summary of 'vpr.out'.
         hold_report (list): A list of hold paths.
@@ -608,7 +628,6 @@ def make_vpr_summary(temp_dir: Path):
         skew_hold_report (list): A list of skew hold paths.
         skew_setup_report (list): A list of skew setup paths.
     '''
-    # TODO: Parse number of constrained vs unconstrained paths.
 
     # File paths to parse
     vpr_out_file = temp_dir / 'vpr.out'
@@ -617,17 +636,20 @@ def make_vpr_summary(temp_dir: Path):
     skew_setup_file = temp_dir / 'report_skew.setup.rpt'
     timing_hold_file = temp_dir / 'report_timing.hold.rpt'
     timing_setup_file = temp_dir / 'report_timing.setup.rpt'
-    unconstrained_hold_file = temp_dir / 'report_unconstrained_timing.hold.rpt'
-    unconstrained_setup_file = temp_dir / 'report_unconstrained_timing.setup.rpt'
-    report_clk_file = temp_dir / 'report_clk.out'
-     
+
+    # TODO: Parse number of constrained vs unconstrained paths.
+    # unconstrained_hold_file = temp_dir / 'report_unconstrained_timing.hold.rpt'
+    # unconstrained_setup_file = temp_dir / 'report_unconstrained_timing.setup.rpt'
+    # report_clk_file = temp_dir / 'report_clk.out'
+
     # Parse timing information from 'vpr.out' using regex
-    # 'vpr.out' has information on 'total nets', 'total wirelength', 'critical path delay', 'TNS', 'WNS', 'netlist clocks'
+    # 'vpr.out' has information on 'total nets', 'total wirelength',
+    # 'critical path delay', 'TNS', 'WNS', 'netlist clocks'
     with open(vpr_out_file, 'r') as f:
         vpr_out_content = f.read()
-    
+
     # Match and parse timing metrics from 'vpr.out'
-    global_net = re.search(r"Number of global nets:\s+(\d+)", vpr_out_content) 
+    global_net = re.search(r"Number of global nets:\s+(\d+)", vpr_out_content)
     routed_net = re.search(r"Number of routed nets \(nonglobal\):\s+(\d+)", vpr_out_content)
     wirelength = re.search(r"Total wirelength:\s+(\d+)", vpr_out_content)
     cpd = re.search(r"Final critical path delay \(least slack\):\s+([\d\.]+)", vpr_out_content)
@@ -635,7 +657,7 @@ def make_vpr_summary(temp_dir: Path):
     sTNS = re.search(r"Final setup Total Negative Slack \(sTNS\):\s+([\d\.\-eE]+)", vpr_out_content)
     hWNS = re.search(r"Final hold Worst Negative Slack \(hWNS\):\s+([\d\.\-eE]+)", vpr_out_content)
     hTNS = re.search(r"Final hold Total Negative Slack \(hTNS\):\s+([\d\.\-eE]+)", vpr_out_content)
-    num_sdc = re.search(r"Applied (\d+) SDC commands", vpr_out_content) 
+    num_sdc = re.search(r"Applied (\d+) SDC commands", vpr_out_content)
     num_sdc_clock = re.search(r"Timing constraints created (\d+) clocks", vpr_out_content)
     num_netlist_clock = re.search(r"Netlist contains (\d+) clocks", vpr_out_content)
     runtime = re.search(r"The entire flow of VPR took ([\d\.]+) seconds", vpr_out_content)
@@ -643,7 +665,8 @@ def make_vpr_summary(temp_dir: Path):
     # Parse netlist clock information, iterates in case multiple clocks exist in the design
     netlist_clk_info = []  # Contains the existing netlist clocks
 
-    for match in re.finditer(r"Netlist Clock '([^']+)' Fanout: (\d+) pins.*?, (\d+) blocks", vpr_out_content):
+    for match in re.finditer(r"Netlist Clock '([^']+)' Fanout: (\d+) pins.*?, (\d+) blocks",
+                             vpr_out_content):
         netlist_clk_info.append({
             'name': match.group(1),
             'fanout_pins': int(match.group(2)),
@@ -680,7 +703,7 @@ def make_vpr_summary(temp_dir: Path):
     # Read the 'resources.txt'
     with open(resources_file, 'r') as f:
         resource_content = f.read()
-    
+
     # Match and parse resource usage from 'resources.txt'
     netlist_io = re.search(r"Netlist io blocks:\s+(\d+)\.", resource_content)
     netlist_clb = re.search(r"Netlist clb blocks:\s+(\d+)\.", resource_content)
@@ -691,54 +714,59 @@ def make_vpr_summary(temp_dir: Path):
     netlist_clb = netlist_clb.group(1)
     netlist_mult36 = netlist_mult36.group(1)
     netlist_memory = netlist_memory.group(1)
-    
+
     # Parse detailed hold analysis
     hold_report = parse_timing_report(timing_hold_file, is_skew=False)
-    
+
     # Parse detailed setup analysis
     setup_report = parse_timing_report(timing_setup_file, is_skew=False)
 
     # Parse skew hold
     skew_hold_report = parse_timing_report(skew_hold_file, is_skew=True)
-    
+
     # Parse skew setup
     skew_setup_report = parse_timing_report(skew_setup_file, is_skew=True)
 
     # Write timing summary that we have parsed
     summary = [f'Total VPR runtime: {runtime}s',
-                f'Number of global nets: {global_net.group(1)}', f'Number of routed nets: {routed_net.group(1)}', 
-                f'Total number of nets: {total_nets}', f'Wirelength: {wirelength}', 
-                f'Critical path delay: {cpd}ns', f'Fmax: {fmax}MHz', f'sWNS: {sWNS}', f'sTNS: {sTNS}',
-                f'hWNS: {hWNS}', f'hTNS: {hTNS}', 
-                f'Timing met: {timing_met}', f'Number of SDCs Applied: {num_sdc}',
-                f'Number of constrained clocks: {num_sdc_clock}',
-                f'List of constrained clocks:\n{constrained_clk_str}\n' 
-                f'Number of netlist clocks: {num_netlist_clock}', f'Netlist clock information:\n{netlist_clk_info}',
-                f'Netlist IO blocks: {netlist_io}',
-                f'Netlist CLB: {netlist_clb}',
-                f'Netlist mult_36: {netlist_mult36}',
-                f'Netlist memory: {netlist_memory}']
-    
+               f'Number of global nets: {global_net.group(1)}',
+               f'Number of routed nets: {routed_net.group(1)}',
+               f'Total number of nets: {total_nets}',
+               f'Wirelength: {wirelength}',
+               f'Critical path delay: {cpd}ns', f'Fmax: {fmax}MHz',
+               f'sWNS: {sWNS}', f'sTNS: {sTNS}',
+               f'hWNS: {hWNS}', f'hTNS: {hTNS}',
+               f'Timing met: {timing_met}', f'Number of SDCs Applied: {num_sdc}',
+               f'Number of constrained clocks: {num_sdc_clock}',
+               f'List of constrained clocks:\n{constrained_clk_str}\n',
+               f'Number of netlist clocks: {num_netlist_clock}',
+               f'Netlist clock information:\n{netlist_clk_info}',
+               f'Netlist IO blocks: {netlist_io}',
+               f'Netlist CLB: {netlist_clb}',
+               f'Netlist mult_36: {netlist_mult36}',
+               f'Netlist memory: {netlist_memory}']
+
     return summary, hold_report, setup_report, skew_hold_report, skew_setup_report
 
-def parse_timing_report(file_path: Path, is_skew: bool=False):
-    ''' 
+
+def parse_timing_report(file_path: Path, is_skew: bool = False):
+    '''
     Parses the detailed timing report written by VPR and adds each reported timing path to a list.
-    
+
     Args:
         file_path (Path): Path to the timing report.
-        is_skew (Bool): True if the file is a skew report, false otherwise. 
+        is_skew (Bool): True if the file is a skew report, false otherwise.
     Returns:
         list: A list of the parsed timing path information.
     '''
     rpt_content = Path(file_path).read_text()
-    
+
     # 1. Partition the rpt_content by 'Path' or 'Skew Path'
     delimiter = r"#Skew Path \d+" if is_skew else r"#Path \d+"
     path_blocks = re.split(delimiter, rpt_content)[1:]
-    
+
     all_paths = []
-    
+
     for block in path_blocks:
         # Do not parse if skew == 0
         if is_skew:
@@ -747,7 +775,7 @@ def parse_timing_report(file_path: Path, is_skew: bool=False):
                 continue
 
         path_info = []
-        
+
         # Parse startpoint & endpoint
         startpoint = re.search(r"Startpoint:\s+(.*)", block)
         endpoint = re.search(r"Endpoint\s+:\s+(.*)", block)
@@ -758,11 +786,11 @@ def parse_timing_report(file_path: Path, is_skew: bool=False):
         rise_edge = re.findall(r"clock .* \(rise edge\)\s+([\d\.]+)", block)
         latency = re.findall(r"clock source latency\s+([\d\.]+)", block)
         uncertainty = re.search(r"clock uncertainty\s+([\d\.]+)", block)
-        
+
         req_time = re.search(r"data required time\s+([\d\.]+)", block)
         arr_time = re.search(r"data arrival time\s+([\d\.]+)", block)
         slack = re.search(r"slack \((MET|VIOLATED)\)\s+([\d\.\-]+)", block)
-        
+
         startpoint = startpoint.group(1).strip() if startpoint else 'N/A'
         endpoint = endpoint.group(1).strip() if endpoint else 'N/A'
         rise_edge = rise_edge[-1] if rise_edge else 'N/A'
@@ -790,100 +818,107 @@ def parse_timing_report(file_path: Path, is_skew: bool=False):
         ]
         # Extend each path information to the list 'all_paths'
         all_paths.extend(path_info)
-        
+
     return all_paths
-    
+
+
 def get_opensta_timing():
     pass
+
 
 def get_min_distance(place_file: Path):
     '''
     Returns the minimum of the average distances to all four peripheries of the FPGA.
-    
+
     Args:
         place_file (Path): Placement file containing the X, Y coordinates of each clusters.
-        
+
     Returs:
         float: The minimum of the average distance to the four peripheries
     '''
     # Read placement file
     assert place_file.exists()
     content = place_file.read_text()
-    
-    # Parse FPGA layout size 
+
+    # Parse FPGA layout size
     array_size = re.search(r"Array size:\s+(\d+)\s+x\s+(\d+)", content)
-    W = int(array_size.group(1)) # FPGA width
-    H = int(array_size.group(2)) # FPGA height
-    
+    W = int(array_size.group(1))  # FPGA width
+    H = int(array_size.group(2))  # FPGA height
+
     # Add distance if (x,y) tells you its a logic block
     north_distance = 0
     south_distance = 0
     east_distance = 0
     west_distance = 0
-    
+
     block_count = 0
     lines = content.splitlines()
-    
+
     # For each line (block) in the placement(.place) file
     for line in lines:
         line = line.strip()
-        if not line or line.startswith('#') or line.startswith('Netlist_File') or line.startswith('Array size'):
+        if (not line
+                or line.startswith('#')
+                or line.startswith('Netlist_File')
+                or line.startswith('Array size')):
             continue
-        
+
         # Parse x, y coordinates of a block
         columns = line.split()
-        block_name = columns[0]
+        # block_name = columns[0]
         x = int(columns[1])
         y = int(columns[2])
-        
+
         # If block is IO, do not calculate distance
         if x == W + 1 or y == H + 1 or x == 0 or y == 0:
             continue
 
         # Keep track of the number of blocks
         block_count += 1
-        
+
         # Accumulate distance
         north_distance += (H - y)
         south_distance += y
         east_distance += (W - x)
         west_distance += x
-    
+
     # Compute the average
     north_distance /= block_count
     south_distance /= block_count
     east_distance /= block_count
     west_distance /= block_count
-    
+
     min_distance = min(north_distance, south_distance, east_distance, west_distance)
     return min_distance
+
 
 def was_sdc_parsed(temp_dir: Path):
     '''
     Inspects 'vpr.out' to check if SDC was properly parsed.
-    
+
     Args:
         temp_dir (Path): Directory in which the VPR log file is located.
-    
+
     Returns:
         bool: True if SDC was parsed, false if otherwise.
     '''
     pattern = r"SDC file '.*?' not found"
-    
-    with open(temp_dir / 'vpr.out','r') as f:
+
+    with open(temp_dir / 'vpr.out', 'r') as f:
         content = f.read()
-    
+
     if re.search(pattern, content):
         print("SDC file was not found for the previous test.\n")
         return False
     print("SDC file was found for the previous test.\n")
     return True
 
+
 def save_path_distribution(timing_report: list, save_dir: Path):
     '''
     Creates histograms representing the distribution of timing paths over the path delay,
     and saves them as two separate PNG files (Arrival Time and Slack).
-    
+
     Args:
         timing_report (list): List of timing paths parsed by the function 'parse_timing_report'.
         save_dir (Path): The Path object indicating where the plots will be saved.
@@ -900,15 +935,15 @@ def save_path_distribution(timing_report: list, save_dir: Path):
             # timing_report[i+3] format: "  Required: {req_time}, Arrival: {arr_time}\n"
             arrival_part = timing_report[i+3].split("Arrival:")[1]
             arr_match = re.search(numeric_pattern, arrival_part)
-            
-            # timing_report[i+4] format: "  Slack: {slack_val} ({slack_met})\n" OR "  Skew: {skew_val}\n"
+
+            # timing_report[i+4]: "Slack: {slack_val} ({slack_met})\n" or "Skew: {skew_val}\n"
             # Search the line directly without split() to safely handle both Slack and Skew
             slack_match = re.search(numeric_pattern, timing_report[i+4])
 
             if arr_match and slack_match:
                 arrival_times.append(float(arr_match.group()))
                 slacks.append(float(slack_match.group()))
-            
+
         except (IndexError, ValueError, AttributeError) as e:
             print(f"Warning: Skipping a path due to parsing error. Details: {e}")
             continue
@@ -924,9 +959,9 @@ def save_path_distribution(timing_report: list, save_dir: Path):
     # Plot and save arrival time distribution
     plt.figure(figsize=(8, 6))  # Create a new standalone figure
     sns.histplot(
-        arrival_times, 
-        kde=True, 
-        color="#2A9D8F", 
+        arrival_times,
+        kde=True,
+        color="#2A9D8F",
         edgecolor='black',
         alpha=0.7,
         bins='auto'
@@ -935,7 +970,7 @@ def save_path_distribution(timing_report: list, save_dir: Path):
     plt.xlabel("Arrival Time", fontsize=12)
     plt.ylabel("Count (Number of Paths)", fontsize=12)
     plt.tight_layout()
-    
+
     arr_filepath = save_dir / "arrival_time_distribution.png"
     plt.savefig(arr_filepath, dpi=300)
     plt.close()
@@ -943,8 +978,8 @@ def save_path_distribution(timing_report: list, save_dir: Path):
     # Plot and save slack distribution
     plt.figure(figsize=(8, 6))  # Create a new standalone figure
     sns.histplot(
-        slacks, 
-        kde=True, 
+        slacks,
+        kde=True,
         color="#E76F51",
         edgecolor='black',
         alpha=0.7,
@@ -953,40 +988,44 @@ def save_path_distribution(timing_report: list, save_dir: Path):
     plt.title("Slack Distribution", fontsize=14, fontweight='bold')
     plt.xlabel("Slack", fontsize=12)
     plt.ylabel("Count (Number of Paths)", fontsize=12)
-    
+
     # Add a vertical line at Slack = 0
     plt.axvline(0, color='red', linestyle='--', linewidth=1.5, label='Zero')
     plt.legend()
     plt.tight_layout()
-    
+
     slack_filepath = save_dir / "slack_distribution.png"
     plt.savefig(slack_filepath, dpi=300)
     plt.close()  # Close the second figure
 
     print(f"Plots successfully saved to:\n  - {arr_filepath}\n  - {slack_filepath}")
-    
+
+
 def visualize_result(test_cases, title, data, label):
     '''
     Create a histogram of given list
-    
+
     Args:
         data (list): Y axis
-        label (list): X axis 
+        label (list): X axis
     '''
     plt.bar(label, data)
     plt.xlabel("Delay Values")
     plt.ylabel("min_avg_distance")
-    
-    plot_path = RESULTS_DIR / test_cases[0]['type'] / 'plot.png'
+
+    plot_path = config.RESULTS_DIR / test_cases[0]['type'] / 'plot.png'
     plt.savefig(plot_path)
+
 
 def analyze_result():
     '''
-    Given multiple experiment results (experiment result directories), compare or compute the average of various timing metrics
-    This function can be used for seed sweep. 
+    Given multiple experiment results (experiment result directories),
+    compare or compute the average of various timing metrics
+    This function can be used for seed sweep.
     '''
     # TODO: Implement this function, however it is lower in priority.
     pass
+
 
 def main():
     '''
@@ -995,33 +1034,40 @@ def main():
     parser = argparse.ArgumentParser(description="Execute the Timing Benchmark")
 
     # Test config
-    parser.add_argument('--test', type=str, required=True, 
-                        help="Test configuration name defined in config.py (e.g., create_clock_rca).")
+    parser.add_argument('--test', type=str, required=True,
+                        help="Test configuration name defined in config.py\
+                              (e.g., create_clock_rca).")
 
     # Seed and SDC
-    # TODO: Implement the analyze_result step where it analyzes/summarizes the seed sweep results after VPR
-    # parser.add_argument('--analyze_result', type=str, action='store_true', help="Analyze benchmark results")
-    parser.add_argument('--seed', type=int, nargs='+', default=[1], help="Seed for placement (e.g., 1 3 5).") 
+    # TODO: Implement the analyze_result step where it summarizes the seed sweep results after VPR
+    # parser.add_argument('--analyze_result', type=str, action='store_true',
+    #                     help="Analyze benchmark results")
+    parser.add_argument('--seed', type=int, nargs='+', default=[1],
+                        help="Seed for placement (e.g., 1 3 5).")
     parser.add_argument('--sdc_dir', type=str, default=None,
                         help="SDC directory. Specifying it will override the generated SDCs.")
 
     # VPR algorithm
-    parser.add_argument('--placement_type', choices=['timing_driven', 'analytical'], 
+    parser.add_argument('--placement_type', choices=['timing_driven', 'analytical'],
                         default='timing_driven', help="Choose placement type.")
-    parser.add_argument('--place_algorithm', choices=['criticality_timing', 'slack_timing'], 
-                        default='criticality_timing', help="Choose timing-driven placement algorithm.")
+    parser.add_argument('--place_algorithm', choices=['criticality_timing', 'slack_timing'],
+                        default='criticality_timing',
+                        help="Choose timing-driven placement algorithm.")
     parser.add_argument('--place_agent_algorithm', choices=['e_greedy', 'softmax'],
                         default='softmax', help="Choose RL agent algorithm.")
-    parser.add_argument('--analytical_solver', choices=['qp-hybrid', 'lp-b2b'], 
+    parser.add_argument('--analytical_solver', choices=['qp-hybrid', 'lp-b2b'],
                         default='qp-hybrid', help="Choose analytical solver.")
-    parser.add_argument('--ap_timing_tradeoff', type=float, default=0.5, 
+    parser.add_argument('--ap_timing_tradeoff', type=float, default=0.5,
                         help="Analytical placement timing tradeoff (0.0~1.0).")
     parser.add_argument('--hold', action='store_true', help="Activate hold analysis with yoyo.")
-    parser.add_argument('--num_paths', type=int, default=100, help="Number of paths to include in the report.")
+    parser.add_argument('--num_paths', type=int, default=100,
+                        help="Number of paths to include in the report.")
 
     # Misc
-    parser.add_argument('--use_params', choices=['on', 'off'], help="Use parameters in the post-synthesis netlist.")
-    parser.add_argument('--num_workers', type=int, default=1, help="Control how many parallel workers VPR may use")
+    parser.add_argument('--use_params', choices=['on', 'off'],
+                        help="Use parameters in the post-synthesis netlist.")
+    parser.add_argument('--num_workers', type=int, default=1,
+                        help="Control how many parallel workers VPR may use")
 
     # Parse arguments
     args = parser.parse_args()
@@ -1042,14 +1088,14 @@ def main():
         sys.exit(1)
 
     # Run VPR
-    # TODO: If a list is given for the test_config, then iterate over the list too. 
+    # TODO: If a list is given for the test_config, then iterate over the list too.
     try:
         print(f"Running VPR for {args.test}")
         for seed in args.seed:
             # Run unconstrained test first
             run_vpr(
                 test_config=test_config,
-                sdc_dir = sdc_dir,
+                sdc_dir=sdc_dir,
                 seed=seed,
                 placement_type=args.placement_type,
                 place_algorithm=args.place_algorithm,
@@ -1069,4 +1115,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    

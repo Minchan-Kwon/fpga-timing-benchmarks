@@ -5,7 +5,7 @@ from pathlib import Path
 
 VTR_ROOT = Path('~/work/vtr-verilog-to-routing').expanduser()
 BENCHMARK_ROOT = Path(__file__).parent
-MICRO_ROOT = BENCHMARK_ROOT / 'fpga_timing_benchmarks' / 'benchmarks' / 'basic' / 'netlist_files'
+NETLIST_ROOT = BENCHMARK_ROOT / 'fpga_timing_benchmarks' / 'benchmarks' / 'netlist_files'
 ARCH_DIR = BENCHMARK_ROOT / 'arch'
 RESULTS_DIR = BENCHMARK_ROOT / 'results'
 SYNTHESIS_DIR = RESULTS_DIR / 'blif'
@@ -22,7 +22,7 @@ LIBERTY_FILE = VTR_ROOT / 'vtr_flow' / 'primitives.lib'
 
 # Dictionary Format:
 # 'type' (str): A unique name for a test case. Used to create the output directory.
-# 'blif' (str): Path to the BLIF file to test, relative to 'MICRO_ROOT'.
+# 'blif' (str): Path to the BLIF file to test, relative to 'NETLIST_ROOT'.
 # 'top_level_module' (str): Name of the top level module of the design.
 # 'sdc' (str): A template for the SDC to test. Use placeholders '<param_name>'
 #              to substitute with varying values.
@@ -44,7 +44,8 @@ create_clock_rca = {
 create_clock -period <period> {clk}
 create_clock -period <delay> -name irrelevant_clock
     """,
-    'param': [{'name': '<period>', 'values': [1.0, 3.0, 5.0, 10.0, 12.0]}, {'name': '<delay>', 'values': [1.0, 5.0]}],
+    'param': [{'name': '<period>', 'values': [1.0, 3.0, 5.0, 10.0, 12.0]},
+              {'name': '<delay>', 'values': [1.0, 5.0]}],
     'layout': 'vtr_medium',
     'graphics': False
 }
@@ -81,12 +82,12 @@ create_clock -period 10.0 {$dff~641^Q~0}
 }
 
 # Setup Tests: Large Designs
-# set_max_delay to constrain a certain path. 
+# set_max_delay to constrain a certain path.
 # Make VPR optimize for timing specifically instead of wirelength on large/complex circuits
 
 picorv32_base = {
     'type': 'picorv32_base',
-    'blif': '',
+    'blif': 'picorv32.blif',
     'sdc': """
 create_clock -period 10.0 {clk}
     """,
@@ -131,8 +132,95 @@ set_max_delay 9.6 -from [get_clocks clk]
     'graphics': True
 }
 
+aes = {
+    'type': 'aes_base',
+    'blif': 'blif/aes.parmys.blif',
+    'sdc': """
+create_clock -period 0 *
+set_input_delay -clock * -max 0 [get_ports {*}]
+set_output_delay -clock * -max 0 [get_ports {*}]
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': False
+}
+
+aes_inv_cipher = {
+    'type': 'aes_inv_cipher_base',
+    'blif': 'blif/aes_inv_cipher_top.parmys.blif',
+    'sdc': """
+create_clock -period 0 *
+set_input_delay -clock * -max 0 [get_ports {*}]
+set_output_delay -clock * -max 0 [get_ports {*}]
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': False
+}
+
+axi_crossbar = {
+    'type': 'axi_crossbar_base',
+    'blif': 'blif/axi_crossbar.parmys.blif',
+    'sdc': """
+create_clock -period 0 *
+set_input_delay -clock * -max 0 [get_ports {*}]
+set_output_delay -clock * -max 0 [get_ports {*}]
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': False
+}
+ethmac = {
+    'type': 'ethmac_base',
+    'blif': 'blif/ethmac.parmys.blif',
+    'sdc': """
+create_clock -period 0 *
+set_input_delay -clock * -max 0 [get_ports {*}]
+set_output_delay -clock * -max 0 [get_ports {*}]
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': False
+}
+firfix = {
+    'type': 'firfix_base',
+    'blif': 'blif/firfix.parmys.blif',
+    'sdc': """
+create_clock -period 0 *
+set_input_delay -clock * -max 0 [get_ports {*}]
+set_output_delay -clock * -max 0 [get_ports {*}]
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': False
+}
+fpu = {
+    'type': 'fpu_base',
+    'blif': 'blif/fpu.blif',
+    'sdc': """
+create_clock -period 0 *
+set_input_delay -clock * -max 0 [get_ports {*}]
+set_output_delay -clock * -max 0 [get_ports {*}]
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': False
+}
+
+ialu = {
+    'type': 'ialu_base',
+    'blif': 'blif/ialu.parmys.blif',
+    'sdc': """
+create_clock -period 0 *
+set_input_delay -clock * -max 0 [get_ports {*}]
+set_output_delay -clock * -max 0 [get_ports {*}]
+    """,
+    'param': None,
+    'layout': 'vtr_large',
+    'graphics': False
+}
 # Hold Tests: AsyncFIFO, CDC
-# I think this would require that VPR correctly parses 'create_generated_clock'. 
+# I think this would require that VPR correctly parses 'create_generated_clock'.
 
 TIMING_TESTS = [create_clock_rca]
 
