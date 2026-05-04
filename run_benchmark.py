@@ -10,10 +10,8 @@ import shutil
 import json
 from itertools import product
 
-# TODO: Clean up CLI
 # TODO: Implement analyze_result(), for seed sweep analysis
-# TODO: More analysis functions such as get_min_distance
-# TODO: Issue where it doesn't print the exception message in main() when wrong blif specified
+# TODO: Issue where it doesn't print the exception message in main() when wrong blif specified.
 # TODO: Running multiple tests at once.
 
 
@@ -315,7 +313,7 @@ def create_result_dir(base_dir: Path, seed: int, **kwargs):
     if hold:
         folder_name += "_hold"
 
-    # Add a number to prevent overwriting existng result directories
+    # Add a number to prevent overwriting existing result directories
     i = 0
     while i < 100:
         new_folder_name = f"{folder_name}{i:02d}"
