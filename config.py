@@ -150,7 +150,8 @@ create_clock -period <period> {clk}
 set_input_delay -clock * -max 0 [get_ports {*}]
 set_output_delay -clock * -max 0 [get_ports {*}]
     """,
-    'param': [{'name': '<period>', 'values': [6.0, 6.8, 6.9, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 9.0]}],
+    'param': [{'name': '<period>', 'values': [6.0, 6.8, 6.9, 7.0, 7.1, 7.2, 7.3, 7.4,
+                                              7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 9.0]}],
     'layout': 'auto',
     'graphics': False,
     'route_chan_width': 100
@@ -164,7 +165,8 @@ create_clock -period <delay> {ap_clk}
 set_input_delay -clock * -max 0 [get_ports {*}]
 set_output_delay -clock * -max 0 [get_ports {*}]
     """,
-    'param': [{'name': '<delay>', 'values': [9.93, 10.10, 10.27, 10.44, 10.61, 10.78, 11.93, 1000]}],
+    'param': [{'name': '<delay>', 'values': [9.93, 10.10, 10.27, 10.44,
+                                             10.61, 10.78, 11.93, 1000]}],
     'layout': 'auto',
     'graphics': False,
     'route_chan_width': 150
@@ -420,7 +422,8 @@ create_clock -period <period> {clk}
 set_input_delay -clock * -max 0 [get_ports {*}]
 set_output_delay -clock * -max 0 [get_ports {*}]
     """,
-    'param': [{'name': '<period>', 'values': [13.70, 13.41, 13.36, 13.32, 13.28, 13.23, 13.19, 1000]}],
+    'param': [{'name': '<period>', 'values': [13.70, 13.41, 13.36, 13.32,
+                                              13.28, 13.23, 13.19, 1000]}],
     'layout': 'auto',
     'graphics': False,
     'route_chan_width': 46
@@ -448,7 +451,8 @@ create_clock -period <period> {clk}
 set_input_delay -clock * -max 0 [get_ports {*}]
 set_output_delay -clock * -max 0 [get_ports {*}]
     """,
-    'param': [{'name': '<period>', 'values': [213.22, 209.61, 209.06, 208.52, 207.98, 207.45, 206.90, 1000]}],
+    'param': [{'name': '<period>', 'values': [213.22, 209.61, 209.06, 208.52,
+                                              207.98, 207.45, 206.90, 1000]}],
     'layout': 'auto',
     'graphics': False,
     'route_chan_width': 86
@@ -505,7 +509,8 @@ create_clock -period <period> {clk}
 set_input_delay -clock * -max 0 [get_ports {*}]
 set_output_delay -clock * -max 0 [get_ports {*}]
     """,
-    'param': [{'name': '<period>', 'values': [76.93, 74.88, 74.57, 74.26, 73.96, 73.65, 73.34, 1000]}],
+    'param': [{'name': '<period>', 'values': [76.93, 74.88, 74.57, 74.26,
+                                              73.96, 73.65, 73.34, 1000]}],
     'layout': 'auto',
     'graphics': False,
     'route_chan_width': 110
