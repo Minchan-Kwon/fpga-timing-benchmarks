@@ -46,6 +46,8 @@ Replace `<PATH_TO_VTR>` with the absolute path to your VTR installation.
 | `--num_paths` | `int` | `100` | Number of timing paths to include in the report. |
 | `--use_params` | flag | `False` | Uses parameters in the post-synthesis netlist. Disable for OpenSTA compatibility. |
 | `--num_workers` | `int` | `1` | Number of parallel workers VPR may use. Argument `0` tells VPR to use as many workers as possible. Requires `libtbb-dev`. |
+| `--starting_stage` | `str` | `parmys` | Start the VTR flow at the specified stage. |
+| `--flat_routing` | `flag` | `False` | Enable flat routing |
 
 ---
 
@@ -69,18 +71,23 @@ Use analytical placement with the `lp-b2b` solver and a timing tradeoff of `0.8`
 python run_benchmark.py --test create_clock_rca --placement_type analytical --analytical_solver lp-b2b --ap_timing_tradeoff 0.8
 ```
 
-Enable hold analysis with 4 parallel workers:
-
-```bash
-python run_benchmark.py --test create_clock_rca --hold --num_workers 4
-```
-
 Use a pre-existing SDC directory instead of generating new SDCs:
 
 ```bash
 python run_benchmark.py --test create_clock_rca --sdc_dir ./my_sdc_files/
 ```
 
+Run the `BASIC_uncertainty` test case with hold optimization enabled.
+
+```bash
+python run_benchmark.py --test BASIC_uncertainty --hold
+```
+
+Run the `BASIC_latency` test case starting from `vpr` to skip technology mapping.
+
+```bash
+python run_benchmark.py --test BASIC_latency --starting_stage vpr
+```
 ---
 
 ## Output Files
@@ -91,10 +98,10 @@ All results are saved under `./results/timing/<test_name>/<result_dir>/`, where 
 |---|---|
 | `config.json` | Records the experiment parameters used for the run. |
 | `<sdc_name>_timing.txt` | Parsed timing summary (CPD, Fmax, WNS, TNS, clock info). |
-| `<sdc_name>_setup.txt` | Parsed setup timing paths. |
-| `<sdc_name>_hold.txt` | Parsed hold timing paths. |
-| `<sdc_name>_skew_setup.txt` | Parsed setup skew paths. |
-| `<sdc_name>_skew_hold.txt` | Parsed hold skew paths. |
+~~| `<sdc_name>_setup.txt` | Parsed setup timing paths. |~~
+~~| `<sdc_name>_hold.txt` | Parsed hold timing paths. |~~
+~~| `<sdc_name>_skew_setup.txt` | Parsed setup skew paths. |~~
+~~| `<sdc_name>_skew_hold.txt` | Parsed hold skew paths. |~~
 | `arrival_time_distribution.png` | Histogram of path arrival times. |
 | `slack_distribution.png` | Histogram of path slacks (with a zero-slack reference line). |
 
