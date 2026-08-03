@@ -63,11 +63,12 @@ set_clock_uncertainty -to [get_clocks {clk}] <uncertainty>
 }
 
 BASIC_latency = {
-    'type': 'UNCERTAINTY_BASIC',
-    'blif': 'hold/clk_latency.v',
+    'type': 'LATENCY_BASIC',
+    'blif': 'hold/clk_latency.blif',
     'sdc': """
 create_clock -period 2.1 {clk}
-set_clock_latency -to [get_clocks {clk_late}] <latency>
+create_clock -period 2.1 {clk_late}
+set_clock_latency -source <latency> [get_clocks {clk_late}]
     """,
     'param': [{'name': '<latency>', 'values': [0.2, 0.3, 0.4, 0.5]}],
     'layout': 'auto',
