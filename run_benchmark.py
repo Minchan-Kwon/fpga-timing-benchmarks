@@ -1083,7 +1083,7 @@ def analyze_result():
 
 def did_routing_fail(temp_dir: Path):
     '''
-    Inspects 'vpr.out' to check if routing failed during hold optimzation.
+    Inspects 'vpr.out' to check if routing failed during hold optimization.
 
     Args:
         temp_dir (Path): Directory in which the VPR log file is located.
