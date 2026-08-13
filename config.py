@@ -91,7 +91,7 @@ set_clock_uncertainty -to [get_clocks {clk}] <uncertainty>
 
 DCT = {
     'type': 'DCT_uncertainty',
-    'blif': 'hold/2D_DCT.v',
+    'blif': 'hold/DCT_2D.v',
     'sdc': """
 create_clock -period 28.7 [get_ports {clk}]
 set_clock_uncertainty -to [get_clocks {clk}] <uncertainty>
@@ -107,7 +107,7 @@ FFT = {
     'blif': 'hold/FFT.v',
     'sdc': """
 create_clock -period 12.3 [get_ports {clk}]
-set_clock_uncertainty -hold -to [get_clocks {clk}] <uncertainty>
+set_clock_uncertainty -to [get_clocks {clk}] <uncertainty>
     """,
     'param': [{'name': '<uncertainty>', 'values': [0.3]}],
     'layout': 'auto',
@@ -133,6 +133,7 @@ FOLDED_FIR_COUNTER = {
     'blif': 'hold/FOLDED_FIR_GEN_COUNTER.v',
     'sdc': """
 create_clock -period 10.3 [get_ports {clk_fast}]
+create_generated_clock -source [get_ports clk_fast] -name clk_slow -divide_by 8 [get_ports clk_slow]
     """,
     'param': None,
     'layout': 'auto',

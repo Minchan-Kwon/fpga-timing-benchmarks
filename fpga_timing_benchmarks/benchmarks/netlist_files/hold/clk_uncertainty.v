@@ -1,4 +1,4 @@
-module clk_skew (
+module clk_uncertainty (
     input wire clk,
     input wire rstn,
     input wire d_in,

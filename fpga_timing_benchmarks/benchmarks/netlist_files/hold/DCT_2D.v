@@ -3,7 +3,7 @@
 // Author: Minchan Kwon
 ///////////////////////////////////////////////////
 
-module 2D_DCT (
+module DCT_2D (
     input          clk,
     input          rstn,
     input  [127:0] RAM_IN_DIN,
@@ -217,7 +217,7 @@ module DCT2 #(
     // Post-truncation, pre-overflow detection
     wire signed [OUT_BW:0] z0, z1, z2, z3, z4, z5, z6, z7;
     wire signed [OUT_BW:0] z8, z9, z10, z11, z12, z13, z14, z15;
-    wire signed [OUT_BW:0] z0_0, z0_1;  // 귀여움 ㅋㅋ
+    wire signed [OUT_BW:0] z0_0, z0_1;
 
     // Post overflow compensation
     wire signed [OUT_BW-1:0] z0c, z1c, z2c, z3c, z4c, z5c, z6c, z7c;
