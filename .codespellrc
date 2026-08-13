@@ -4,7 +4,8 @@ skip = ./build,
        # File types that we do not need to spell-check.
        *.pdf,
        *.blif,
-       *.xml
+       *.xml,
+       *.v
        # Large testing directories.
 
 # Show a count of the number of spelling mistakes when codespell is run.
