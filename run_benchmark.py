@@ -228,14 +228,13 @@ def run_vpr(test_config: dict, sdc_dir: str = None, seed: int = 1, **kwargs):
             png_file.rename(run_output_dir / graphics_file)
 
         # Make VPR summary and parse VPR timing reports
-        summary, hold_rpt, setup_rpt, skew_hold_rpt, skew_setup_rpt = make_vpr_summary(temp_dir)
+        summary = make_vpr_summary(temp_dir)
 
         # Write parsed timing information to a new file
-        save_vpr_timing_report(run_output_dir, sdc, summary, hold_rpt,
-                               setup_rpt, skew_hold_rpt, skew_setup_rpt)
+        save_vpr_timing_report(run_output_dir, sdc, summary)
 
         # Save the distribution plot to the result directory
-        save_path_distribution(setup_rpt, run_output_dir)
+        # save_path_distribution(setup_rpt, run_output_dir)
 
         # Move vpr.out from 'temp_dir' to the result directory
         vpr_out_file = temp_dir / "vpr.out"
@@ -410,7 +409,7 @@ def build_vpr_command(test_config: dict, sdc: str = None, seed: int = 1, **kwarg
     num_paths = str(kwargs.get('num_paths', '100'))
     # Number of parallel workers VPR can use
     num_workers = kwargs.get('num_workers', '1')
-    # The format of the RTL file
+    # Starting stage of the VTR flow
     # Default is 'parmys'
     starting_stage = kwargs.get('starting_stage', 'parmys')
     # Flat routing is disabled by default
@@ -448,7 +447,6 @@ def build_vpr_command(test_config: dict, sdc: str = None, seed: int = 1, **kwarg
             '--ap_analytical_solver', f'{analytical_solver}',
             '--ap_timing_tradeoff', f'{ap_timing_tradeoff}',
             '--routing_budgets_algorithm', f'{budgets_algo}',
-            '--route_chan_width', '100',  # This ensure VPR won't fail during the routing stage
             '--route', '--analysis'  # Forces VPR to run routing and analysis stages
         ]
     # Wrong placement type
@@ -463,6 +461,9 @@ def build_vpr_command(test_config: dict, sdc: str = None, seed: int = 1, **kwarg
     # Routing channel width
     if test_config['route_chan_width'] != -1:
         cmd += ['--route_chan_width', f'{test_config['route_chan_width']}']
+
+    else:
+        cmd += ['--route_chan_width', '100']  # This ensures VPR won't fail during the routing stage
 
     # Do not use parameters in post-synthesis netlist (flag for OpenSTA)
     if use_params == 'off':
@@ -487,9 +488,7 @@ def build_vpr_command(test_config: dict, sdc: str = None, seed: int = 1, **kwarg
     return cmd, graphics_file if test_config.get('graphics') else None, temp_dir
 
 
-def save_vpr_timing_report(result_dir: Path, sdc: Path, summary: list,
-                           hold_rpt: list, setup_rpt: list,
-                           skew_hold_rpt: list, skew_setup_rpt: list):
+def save_vpr_timing_report(result_dir: Path, sdc: Path, summary: list):
     '''
     Writes the parsed VPR timing report to the result directory.
 
@@ -497,28 +496,11 @@ def save_vpr_timing_report(result_dir: Path, sdc: Path, summary: list,
         result_dir (Path): Where the timing reports will be saved.
         sdc (Path): The path to the SDC used to run VPR.
         summary (list): List of timing summary contents returned by 'make_vpr_summary()'.
-        hold_rpt (list): List of hold report contents returned by 'make_vpr_summary()'.
-        setup_rpt (list): List of setup report contents returned by 'make_vpr_summary()'.
-        skew_hold_rpt (list): List of skew hold report contents returned by 'make_vpr_summary()'.
-        skew_setup_rpt (list): List of skew setup report contents returned by 'make_vpr_summary()'.
     '''
     # Write parsed timing information to a new file
     sdc_name = sdc.stem if sdc else 'default_sdc'
     with open(result_dir / f'{sdc_name}_summary.txt', 'w') as f:
         f.writelines('\n'.join(summary))
-
-    # Currently disabled.
-    # Move the entire timing report instead of the summarized reports.
-    '''
-    with open(result_dir / f'{sdc_name}_hold.txt', 'w') as f:
-        f.writelines(hold_rpt)
-    with open(result_dir / f'{sdc_name}_setup.txt', 'w') as f:
-        f.writelines(setup_rpt)
-    with open(result_dir / f'{sdc_name}_skew_hold.txt', 'w') as f:
-        f.writelines(skew_hold_rpt)
-    with open(result_dir / f'{sdc_name}_skew_setup.txt', 'w') as f:
-        f.writelines(skew_setup_rpt)
-    '''
 
 
 def make_json(test_config: dict, result_dir: Path, seed: int, **kwargs):
@@ -677,8 +659,6 @@ def make_vpr_summary(temp_dir: Path):
     # File paths to parse
     vpr_out_file = temp_dir / 'vpr.out'
     resources_file = temp_dir / 'resources.txt'
-    skew_hold_file = temp_dir / 'report_skew.hold.rpt'
-    skew_setup_file = temp_dir / 'report_skew.setup.rpt'
     timing_hold_file = temp_dir / 'report_timing.hold.rpt'
     timing_setup_file = temp_dir / 'report_timing.setup.rpt'
 
@@ -768,12 +748,6 @@ def make_vpr_summary(temp_dir: Path):
     # Parse detailed setup analysis
     setup_report = parse_timing_report(timing_setup_file, is_skew=False)
 
-    # Parse skew hold
-    skew_hold_report = parse_timing_report(skew_hold_file, is_skew=True)
-
-    # Parse skew setup
-    skew_setup_report = parse_timing_report(skew_setup_file, is_skew=True)
-
     # Parse the number of violated paths for setup and hold
     num_violated_setup_paths = sum(1 for line in setup_report if "(VIOLATED)" in line)
     num_violated_hold_paths = sum(1 for line in hold_report if "(VIOLATED)" in line)
@@ -800,7 +774,7 @@ def make_vpr_summary(temp_dir: Path):
                f'Violated Setup Paths: {num_violated_setup_paths}',
                f'Violated Hold Paths: {num_violated_hold_paths}']
 
-    return summary, hold_report, setup_report, skew_hold_report, skew_setup_report
+    return summary
 
 
 def parse_timing_report(file_path: Path, is_skew: bool = False):
