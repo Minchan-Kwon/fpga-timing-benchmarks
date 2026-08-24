@@ -98,10 +98,11 @@ All results are saved under `./results/timing/<test_name>/<result_dir>/`, where 
 |---|---|
 | `config.json` | Records the experiment parameters used for the run. |
 | `<sdc_name>_timing.txt` | Parsed timing summary (CPD, Fmax, WNS, TNS, clock info). |
-~~| `<sdc_name>_setup.txt` | Parsed setup timing paths. |~~
-~~| `<sdc_name>_hold.txt` | Parsed hold timing paths. |~~
-~~| `<sdc_name>_skew_setup.txt` | Parsed setup skew paths. |~~
-~~| `<sdc_name>_skew_hold.txt` | Parsed hold skew paths. |~~
+| `vpr.out` | Full VPR report. |
+| `report_timing.setup.rpt` | VPR setup timing report. |
+| `report_timing.hold.rpt` | VPR hold timing report. |
+| `report_skew.setup.rpt` | VPR setup skew report. |
+| `report_skew.hold.rpt` | VPR hold skew report. |
 | `arrival_time_distribution.png` | Histogram of path arrival times. |
 | `slack_distribution.png` | Histogram of path slacks (with a zero-slack reference line). |
 
@@ -150,17 +151,7 @@ main()
               │
               ├── make_vpr_summary(temp_dir)
               │     Parses vpr.out for top-level metrics (CPD, Fmax, WNS, TNS,
-              │     constrained clocks). Calls parse_timing_report() for each
-              │     detailed timing report file.
-              │     │
-              │     └── parse_timing_report(file_path, is_skew)
-              │           Splits the VPR timing report by path blocks and
-              │           extracts per-path data (startpoint, endpoint, arrival
-              │           time, slack/skew) into a flat list.
-              │
-              ├── save_vpr_timing_report(result_dir, sdc, ...)
-              │     Writes the parsed timing lists from make_vpr_summary()
-              │     into human-readable .txt files in the result directory.
+              │     constrained clocks). 
               │
               └── save_path_distribution(setup_rpt, run_output_dir)
                     Parses arrival times and slack values from the setup
@@ -192,6 +183,7 @@ my_test = {
     'param':            list|None,  # List of parameter dictionaries for sweeping, or None if no parameters.
     'layout':           str,        # VPR device layout name as defined in the architecture .xml file.
     'graphics':         bool        # If True, saves a PNG of the placed-and-routed design via VPR graphics.
+    'route_chan_width': int         # Specifies the channel width for routing.
 }
 ```
 
@@ -218,10 +210,11 @@ create_clock_rca = {
     'sdc': """
 create_clock -period <period> {clk}
 create_clock -period 1.0 -name irrelevant_clock
-    """.strip(),
+    """,
     'param': [{'name': '<period>', 'default': None, 'values': [1.0, 3.0, 5.0, 10.0, 12.0]}],
     'layout': 'vtr_medium',
-    'graphics': False
+    'graphics': False,
+    'route_chan_width': 100
 }
 ```
 
@@ -250,10 +243,11 @@ create_generated_clock_clock_divider_base = {
 create_clock -period 10.0 clk
 set_clock_latency -source 5.0 [get_clocks clk]
 create_generated_clock -source [get_clocks clk] -divide_by 2 {*641*.Q*}
-    """.strip(),
+    """,
     'param': None,
     'layout': 'vtr_medium',
-    'graphics': True
+    'graphics': True,
+    'route_chan_width': 100
 }
 ```
 
